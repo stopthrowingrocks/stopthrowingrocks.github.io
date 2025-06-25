@@ -3,4 +3,4 @@ title = "My second post"
 date = 2019-11-28
 +++
 
-This is my second blog post.
+This is my second blog post. It has two sentences.
