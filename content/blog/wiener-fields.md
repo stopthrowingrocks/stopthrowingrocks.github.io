@@ -5,6 +5,7 @@ date = 2025-06-25
 
 TODOs
 - Fix LaTeX rendering on website. Get tooltip working as well.
+- Install a theme maybe.
 
 # Generalizing Brownian motion: Modeling random fields over arbitrary geometries
 <!-- 0.5 mins -->
