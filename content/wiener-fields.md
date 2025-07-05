@@ -1,12 +1,11 @@
 +++
 title = "Generalizing Brownian motion: Modeling random fields over arbitrary geometries"
 date = 2025-06-25
+
+[extra]
+tab_title = "Modeling random fields"
+reading_time = "20"
 +++
-
-# Generalizing Brownian motion: Modeling random fields over arbitrary geometries
-<!-- 0.5 mins -->
-
-_20 min read. Published 2025-06-25._
 
 Hello! In this article, we will explore the topic of random fields, which are continuous random functions from some metric space to the real numbers. In trying to model them, we will create some desiderata and find an explicit formula that describes their statistical properties. This formula will be able to test if a process for generating random fields satisfies our desiderata, and will also suggest an algorithm guaranteed to satisfy it.
 
