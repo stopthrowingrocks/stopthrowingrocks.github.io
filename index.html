@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yes</title>
+
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" integrity="sha384-HORx6nWi8j5/mYA+y57/9/CZc5z8HnEw4WUZWy5yOn9ToKBv1l58vJaufFAn9Zzi" crossorigin="anonymous"></script>
+  <script>
+      document.addEventListener("DOMContentLoaded", function () {
+          renderMathInElement(document.body, {
+              delimiters: [
+                  { left: '$$', right: '$$', display: true },
+                  { left: '$', right: '$', display: false },
+                  { left: '\\(', right: '\\)', display: false },
+                  { left: '\\[', right: '\\]', display: true }
+              ],
+              throwOnError: false
+          });
+      });
+  </script>
+
+  <!-- CSS -->
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://stopthrowingrocks.github.io/main.css">
+</head>
+
+<body>
+  <section class="section">
+    <div class="container">
+      
+<h1 class="title">
+  List of blog posts
+</h1>
+<ul>
+  <!-- If you are using pagination, section.pages will be empty.
+       You need to use the paginator object -->  
+  
+  <li><a href="https://stopthrowingrocks.github.io/matrix-derivation/">Matrix Derivation: What if the derivative, but matrices?</a></li>
+  
+  <li><a href="https://stopthrowingrocks.github.io/random-fields/">Generalizing Brownian motion: Modeling random fields over arbitrary geometries</a></li>
+  
+</ul>
+
+    </div>
+  </section>
+</body>
+
+</html>
