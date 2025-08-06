@@ -1,0 +1,3 @@
+[submodule "content/WMA1"]
+	path = content/WMA1
+	url = git@github.com:stopthrowingrocks/WMA1.git
