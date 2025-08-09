@@ -1,3 +1,4 @@
 *.secret.*
 *.draft.*
 *.hidden.*
+/node_modules/
