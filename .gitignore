@@ -2,3 +2,4 @@
 *.draft.*
 *.hidden.*
 /node_modules/
+public

@@ -7,7 +7,10 @@ compile_sass = true
 # Whether to build a search index to be used later on by a JavaScript library
 build_search_index = false
 
-ignored_content = ["*.zola-ignore.md", "**/README.md"]
+ignored_content = [
+  "*.zola-ignore.md",
+  "**/README.md",
+]
 
 [markdown]
 # Whether to do syntax highlighting
