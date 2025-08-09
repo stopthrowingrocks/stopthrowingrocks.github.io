@@ -17,6 +17,8 @@ jobs:
           cache: npm
       - name: Install deps once at root (workspaces)
         run: npm ci
+      - name: Check TS compilation for wma1
+        run: npm run check --workspace=content/wma1
       - name: Build TS for wma1 with esbuild
         run: npm run build --workspace=content/wma1
       - name: build_and_deploy
