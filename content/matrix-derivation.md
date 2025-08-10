@@ -3,9 +3,11 @@ title = "Matrix Derivation: What if the derivative, but matrices?"
 date = 2025-07-22
 
 [extra]
-subtitle = "10 min read. Published 2025-07-22."
+subtitle = "10 min read. Published 2025-07-22. Last edited 2025-07-25."
 tab_title = "Matrix Derivation"
 +++
+
+**This post has now been formalized in Lean!** [Check it out here.](https://github.com/stopthrowingrocks/mathematics-in-lean/blob/master/src/matrix-derivation.lean)
 
 The derivative is an operator that takes a continuous function $f:\mathbb{R}\to\mathbb{R}$ to a continuous function $f':\mathbb{R}\to\mathbb{R}$. It has many generalizations, for example the gradient (when $f$ has multiple inputs), the vector derivative (when $f$ has multiple outputs), or even the [finite difference operator](https://en.wikipedia.org/wiki/Finite_difference), defined as $\Delta f(x)=f(x+1)-f(x)$. But, like, what if we could generalize the derivative to something that wasn't even a function?
 
