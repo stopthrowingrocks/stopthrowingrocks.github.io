@@ -8,10 +8,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: get submodules
-        run: git submodule update --init --recursive
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: install node
         uses: actions/setup-node@v4
         with:
@@ -23,6 +25,7 @@ jobs:
         run: npm run check --workspace=content/wma1
       - name: Build TS for wma1 with esbuild
         run: npm run build --workspace=content/wma1
+
       - name: build_and_deploy
         uses: shalzz/zola-deploy-action@v0.20.0
         env:
