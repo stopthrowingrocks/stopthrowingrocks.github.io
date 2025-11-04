@@ -1,3 +1,7 @@
 [submodule "content/wma1"]
   path = content/wma1
-	url = https://github.com/stopthrowingrocks/WMA1.git
+  url = https://github.com/stopthrowingrocks/WMA1.git
+
+[submodule "content/color-sort"]
+	path = content/color-sort
+	url = git@github.com:stopthrowingrocks/color-sort.git
