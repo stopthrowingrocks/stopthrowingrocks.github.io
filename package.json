@@ -1,4 +1,4 @@
 {
   "name": "stopthrowingrocks.github.io",
-  "workspaces": ["content/wma1"]
+  "workspaces": ["content/wma1", "content/color-sort"]
 }

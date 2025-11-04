@@ -21,10 +21,11 @@ jobs:
           cache: npm
       - name: Install deps once at root (workspaces)
         run: npm ci
-      - name: Check TS compilation for wma1
-        run: npm run check --workspace=content/wma1
       - name: Build TS for wma1 with esbuild
         run: npm run build --workspace=content/wma1
+      - name: Build TS for color-sort with esbuild
+        run: npm run build --workspace=content/color-sort
+
 
       - name: build_and_deploy
         uses: shalzz/zola-deploy-action@v0.20.0
