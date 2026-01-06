@@ -1,0 +1,8 @@
+@font-face {
+  font-family: "Share Tech Mono";
+  src: url("ShareTechMono-Regular.ttf");
+}
+
+#gm-elem {
+    font-family: "Share Tech Mono", monospace;
+}

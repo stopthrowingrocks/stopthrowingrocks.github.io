@@ -3,13 +3,13 @@ title = "Teraformr"
 date = 2025-08-09
 
 [extra]
-subtitle = "A game about moving things around."
+subtitle = "A game about moving things around. WASD or Arrow Keys to move, Z to undo, R to restart."
 tab_title = "Teraformr"
 +++
 
 <html>
   <head>
-    <!-- <link id="css" rel="stylesheet" type="text/css" href="css/style.css"> -->
+    <link id="css" rel="stylesheet" type="text/css" href="css/style.css">
     <script type="module" src="build/index.js"></script>
   </head>
   <body>
