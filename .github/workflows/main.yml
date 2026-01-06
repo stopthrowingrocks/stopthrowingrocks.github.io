@@ -21,6 +21,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: npm install
+        run: npm install
       - name: Install deps once at root (workspaces)
         run: npm ci
       - name: Build TS for wma1 with esbuild
