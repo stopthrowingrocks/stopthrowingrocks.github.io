@@ -1,6 +1,6 @@
 +++
 title = "Teraformr"
-date = 2025-08-09
+date = 2026-01-01
 
 [extra]
 subtitle = "A game about moving things around. WASD or Arrow Keys to move, Z to undo, R to restart."
