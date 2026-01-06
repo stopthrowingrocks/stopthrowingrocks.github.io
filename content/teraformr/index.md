@@ -9,8 +9,8 @@ tab_title = "Teraformr"
 
 <html>
   <head>
-    <link id="css" rel="stylesheet" type="text/css" href="css/style.css">
-    <script type="module" src="build/new.js"></script>
+    <!-- <link id="css" rel="stylesheet" type="text/css" href="css/style.css"> -->
+    <script type="module" src="build/index.js"></script>
   </head>
   <body>
     <div id="load">

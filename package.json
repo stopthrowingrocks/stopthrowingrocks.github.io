@@ -1,4 +1,8 @@
 {
   "name": "stopthrowingrocks.github.io",
-  "workspaces": ["content/wma1", "content/color-sort"]
+  "workspaces": ["content/wma1", "content/color-sort"],
+  "scripts": {
+    "serve": "zola serve",
+    "watch": "esbuild content/teraformr/src/* --outdir=content/teraformr/build --watch"
+  }
 }
