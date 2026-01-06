@@ -26,7 +26,7 @@ jobs:
       - name: Build TS for color-sort with esbuild
         run: npm run build --workspace=content/color-sort
       - name: Build TS for Teraformr
-        run: esbuild content/teraformr/src/* --outdir=content/teraformr/build
+        run: npm run build --workspace=content/teraformr
 
 
       - name: build_and_deploy
