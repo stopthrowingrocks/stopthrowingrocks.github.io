@@ -5,6 +5,7 @@ date = 2025-06-25
 [extra]
 subtitle = "30 min read. Published 2025-06-25. Last edited 2025-07-14."
 tab_title = "Modeling random fields"
+katex = true
 +++
 
 Hello! In this article, we will explore the topic of random fields, which are continuous random functions from some metric space to the real numbers. In trying to model them, we will come up with some properties we want them to have (called desiderata) and find an explicit formula that describes their statistical properties. This formula will be able to test if a process for generating random fields satisfies our desiderata, and will also suggest an algorithm guaranteed to satisfy it.
