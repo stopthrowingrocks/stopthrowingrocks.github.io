@@ -3,7 +3,7 @@ title = "Matrix Derivation: What if the derivative, but matrices?"
 date = 2025-07-22
 
 [extra]
-subtitle = "10 min read. Published 2025-07-22. Last edited 2025-07-25."
+subtitle = "MATH. 10 min read. Published 2025-07-22. Last edited 2025-07-25."
 tab_title = "Matrix Derivation"
 katex = true
 +++

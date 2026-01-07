@@ -3,7 +3,7 @@ title = "Generalizing Brownian motion: Modeling random fields over arbitrary geo
 date = 2025-06-25
 
 [extra]
-subtitle = "30 min read. Published 2025-06-25. Last edited 2025-07-14."
+subtitle = "MATH. 30 min read. Published 2025-06-25. Last edited 2025-07-14."
 tab_title = "Modeling random fields"
 katex = true
 +++

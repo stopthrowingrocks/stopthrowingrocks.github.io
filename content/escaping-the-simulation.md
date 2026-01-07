@@ -3,7 +3,7 @@ title = "Escaping the Simulation"
 date = 2026-01-06
 
 [extra]
-subtitle = "20 min read. Published 2026-01-06. Last edited 2026-01-06."
+subtitle = "FICTION. 20 min read. Published 2026-01-06. Last edited 2026-01-06."
 tab_title = "Escaping the Simulation"
 +++
 
