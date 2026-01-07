@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matrix Derivation</title>
+
+  <!-- KaTeX -->
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" integrity="sha384-nB0miv6/jRmo5UMMR1wu3Gz6NLsoTkbqJghGIsx//Rlm+ZU03BU6SQNC66uf4l5+" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" integrity="sha384-HORx6nWi8j5/mYA+y57/9/CZc5z8HnEw4WUZWy5yOn9ToKBv1l58vJaufFAn9Zzi" crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      renderMathInElement(document.body, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false
+      });
+    });
+  </script>
+  
+
+  <!-- CSS -->
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://stopthrowingrocks.github.io/main.css">
+</head>
+
+<body>
+  <section class="section">
+    <div class="container">
+      
+<h1 class="title">
+  Matrix Derivation: What if the derivative, but matrices?
+</h1>
+
+<p class="subtitle"><em>10 min read. Published 2025-07-22. Last edited 2025-07-25.</em></p>
+<a href="/" style="color: black">See my other posts!</a>
+<p><strong>This post has now been formalized in Lean!</strong> <a href="https://github.com/stopthrowingrocks/mathematics-in-lean/blob/master/src/matrix-derivation.lean">Check it out here.</a></p>
+<p>The derivative is an operator that takes a continuous function $f:\mathbb{R}\to\mathbb{R}$ to a continuous function $f':\mathbb{R}\to\mathbb{R}$. It has many generalizations, for example the gradient (when $f$ has multiple inputs), the vector derivative (when $f$ has multiple outputs), or even the <a href="https://en.wikipedia.org/wiki/Finite_difference">finite difference operator</a>, defined as $\Delta f(x)=f(x+1)-f(x)$. But, like, what if we could generalize the derivative to something that wasn't even a function?</p>
+<p>Instead of taking a function to a function, let's make an operator that takes a matrix to another matrix. A very fundamental rule of the derivative is the product rule, so let's define a Matrix <a href="https://en.wikipedia.org/wiki/Derivation_(differential_algebra)">Derivation</a> to have an analogous version of the product rule. Our Matrix Derivation $\mathbb{D}$ will have a few properties:</p>
+<ul>
+<li>Size preservation: Given an $n\times m$ matrix $A\in\mathbb{R}^{n\times m}$, $\mathbb{D}(A)$ is also an $n\times m$ matrix.</li>
+<li>Linearity: $\mathbb{D}(aA+bB)=a\mathbb{D}(A)+b\mathbb{D}(B)$ for scalars $a,b$ and matrices of equal size $A,B$.</li>
+<li>The Product Rule: $\mathbb{D}(AB)=A\mathbb{D}(B)+\mathbb{D}(A)B$ for matrix $A\in\mathbb{R}^{n\times k}$ and $B\in\mathbb{R}^{k\times m}$.</li>
+</ul>
+<p>I first claim that the matrix derivation of a $1\times 1$ matrix is always $0$. Given $a\in\mathbb{R}^{1\times 1}$, because $\mathbb{D}$ is linear, $\mathbb{D}(a)=da$ for some scalar $d$. However, $dab = \mathbb{D}(ab)=aD(b)+D(a)b=dab + dab=2dab$, so $d$ must be $0$.</p>
+<p>Now let's look at row and column vectors. Because $\mathbb{D}$ is linear, given column vector $v_ {(n)}\in\mathbb{R}^{n\times 1}$, $\mathbb{D}(v_ {(n)})=D_ {(n)}v_ {(n)}$ for some square matrix $D_ {(n)}\in\mathbb{R}^{n\times n}$. This is also true for $1\times n$ row vectors, such that for row vectors $u_ {(n)}^T $ and square transformation matrix $E_ {(n)}\in\mathbb{R}^{n\times n}$, $D(u_ {(n)}^T )=u_ {(n)}^T E_ {(n)}$. Now, because the dot product of two column vectors is a $1\times 1$ matrix, which has matrix derivation $0$, we should expect that $\mathbb{D}(u_ {(n)}^T v_ {(n)})=0$. Applying the product rule, $\mathbb{D}(u_ {(n)}^T v_ {(n)})=u_ {(n)}^T \mathbb{D}(v_ {(n)})+\mathbb{D}(u_ {(n)}^T )v_ {(n)}=u_ {(n)}^T D_ {(n)}v_ {(n)}+u_ {(n)}^T E_ {(n)}v_ {(n)}=u_ {(n)}^T \left(D_ {(n)}+E_ {(n)}\right)v_ {(n)}=0$. Because this is true for all $u_ {(n)}^T $ and $v_ {(n)}$, we know that $D_ {(n)}+E_ {(n)}=0$ which means that $E_ {(n)}=-D_ {(n)}$. Plugging this into our formula for the matrix derivation of a row vector, we get that $\mathbb{D}(u_ {(n)}^T)=-u_ {(n)}^T D_ {(n)}$. Note that $D_ {(1)}$ always equals zero because the matrix derivation of a $1\times 1$ matrix is always zero.</p>
+<p>Finally, lets take a look at matrices. Let $\hat{e}_ {(ni)}$ be the $i$-th unit vector in $\mathbb{R}^n$. In this way, if matrix $A\in\mathbb{R}^{n\times m}$ has components $A_ {ij}$, then $A=\sum_ {i=1}^{n}\sum_ {j=1}^m A_ {ij}\hat{e}_ {(ni)}\hat{e}_ {(mj)}^T$. We can use this to find the matrix derivation of $A$. By linearity, $\mathbb{D}(A)=\sum_ {i=1}^{n}\sum_ {j=1}^m A_ {ij}\mathbb{D}\left(\hat{e}_ {(ni)}\hat{e}_ {(mj)}^T\right)$. By the product rule, this equals $\sum_ {i=1}^{n}\sum_ {j=1}^m A_ {ij}\left(\mathbb{D}\left(\hat{e}_ {(ni)}\right)\hat{e}_ {(mj)}^T+\hat{e}_ {(ni)}\mathbb{D}\left(\hat{e}_ {(mj)}^T\right)\right)$. By the definitions above, this then equals $\sum_ {i=1}^{n}\sum_ {j=1}^m A_ {ij}\left(D_ {(n)}\hat{e}_ {(ni)}\hat{e}_ {(mj)}^T-\hat{e}_ {(ni)}\hat{e}_ {(mj)}^T D_ {(m)}\right)$. And simplifying, we get $D_ {(n)}\sum_ {i=1}^{n}\sum_ {j=1}^m A_ {ij}\hat{e}_ {(ni)}\hat{e}_ {(mj)}^T-\sum_ {i=1}^{n}\sum_ {j=1}^m A_ {ij}\hat{e}_ {(ni)}\hat{e}_ {(mj)}^T D_ {(m)}=D_ {(n)}A-AD_ {(m)}$. Isn't that a nice formula? It means that once we've defined derivation for every size of vector, the derivation for matrices in general immediately follows. Let's quickly check that this satisfies the product rule. Given $A\in\mathbb{R}^{n\times k}$ and $B\in\mathbb{R}^{k\times m}$, we should get that $\mathbb{D}(AB)=D_ {(n)}AB-ABD_ {(m)}$. Using the product rule, we get that $\mathbb{D}(AB)=A\mathbb{D}(B)+\mathbb{D}(A)B=A\left(D_ {(k)}B-BD_ {(m)}\right)+\left(D_ {(n)}A-AD_ {(k)}\right)B=D_ {(n)}AB-AD_ {(k)}B+AD_ {(k)}B-ABD_ {(m)}=D_ {(n)}AB-ABD_ {(m)}$, which is exactly what we expected. From here we can also compute that if we apply the matrix derivation $k$ times, we get $\mathbb{D}^k(A)=\sum_ {i=0}^k D_ {(n)}^i A D_ {(m)}^{k-i}$.</p>
+<p>At this point given any sequence of square matrices $D_ {(2)}, D_ {(3)}, \ldots$, we can compute a matrix derivation based on those matrices. However, how are we ever going to pick what those should be? For each $D_ {(n)}$, we would need to pick $n^2$ real numbers to fully define it, which is a lot. I see two ways of narrowing down the set of possibilities.</p>
+<ul>
+<li>The first idea for a constraint is that each $D_ {(n)}$ is symmetric, which means that $D_ {(n)}^T=D_ {(n)}$. This reduces the number of variables to configure by about half. However, the main interesting this about this is because $D_ {(n)}$ can be diagonalized such that $D_ {(n)}=P_ {(n)}\Lambda_ {(n)}P_ {(n)}^{-1}$ for invertible matrix $P_ {(n)}$ and diagonal matrix $\Lambda_ {(n)}$. What this would mean is that the $k$-th matrix derivation is $\mathbb{D}^{k}(A)=P_ {(n)}\left(\sum_ {i=0}^k \Lambda_ {(n)}^i \left(P_ {(n)}^{-1}AP_ {(m)}\right) \Lambda_ {(m)}^{k-i}\right)P_ {(m)}^{-1}$, which if the diagonalization of $D_ {(n)}$ and $D_ {(m)}$ can be computed, makes finding the $k$-th matrix derivation very easy.</li>
+<li>The second idea for a constraint is that the matrix derivation of any square permutation matrix $S$ is zero. This would mean that $\mathbb{D}(SA)=S\mathbb{D}(A)$ and $\mathbb{D}(AS)=\mathbb{D}(A)S$, which creates symmetry over our choice of indices. This means for a single $D_ {(n)}$ all the off-diagonal components are equal, and all the on-diagonal components are equal. This at least takes the $n^2$ degrees of freedom down to $2$ for each $D_ {(n)}$.</li>
+</ul>
+<h2 id="tensor-derivation-the-brink-of-insanity">Tensor Derivation: The brink of insanity</h2>
+<p>An $n\times m$ matrix is a 2D grid of numbers. This means that we use two indices to select specific elements: one for the row number, with a maximum value of $n$, and one for the column number, with a maximum value of $m$. We can say the row index has size $n$ and the column index has size $m$. In general, tensors are a generalization of matrices that can have any number of indices, each with possibly their own sizes. Tensors have two kinds of indices, "contravariant" indices and "covariant" indices. The contravariant indices form superscripts of the tensor, and the covariant indices form subscripts of the tensor. For example, $T^{ab}_ {cde}$ is a tensor with two contravariant indices $a,b$, and three covariant indices $c,d,e$. The reason for these names comes from how tensors are used in physics, but we will ignore that for now.</p>
+<p>Given a tensor, we can "contract" the tensor along a pair of contravariant and covariant indices of equal size $n$ like so: $T'^a_ {ce}=\sum_ {b=1}^n T^{ab}_ {cbe}$. For concision, we use what is called <a href="https://en.wikipedia.org/wiki/Einstein_notation">Einstein summation notation</a> and just write $T'^{a}_ {ce}=T^{ab}_ {cbe}$, where because $b$ is repeated it is called a dummy index, and it is summed over. One way of describing matrix multiplication $C'=AB$ is that $A$ and $B$ are each tensors with one contravariant and one covariant index. First, we product them together to get $C^{ik}_ {jl}=A^i_ j B^k_ l$, which has two contravariant and two covariant indices. Then, we contract $C$ over $j$ and $k$ to get $C'^i_ l=C^{ij}_ {jl}=A^i_ j B^j_ l=\sum_ {j=1}^n A^i_ j B^j_ l$, assuming indices $j,k$ have size $n$. Also, given a single square matrix $A\in\mathbb{R}^{n\times n}$, the contraction of its two indices is equal to its <a href="https://en.wikipedia.org/wiki/Trace_(linear_algebra)">trace</a>. This will help guide us on how to design our Tensor Derivation. In general, because tensors can have arbitrary numbers of indices, we will create a couple of conventions. Given a tensor with $\mu$ contravariant indices and $\nu$ covariant indices, we will write the tensor like so: $T^{i[\mu]}_ {j[\nu]}$. This is a shorthand for $T^{i_ 1 i_ 2 \cdots i_ \mu}_ {j_ 1 j_ 2 \cdots j_ \nu}$. Suppose now that we want to contract this tensor over contravariant index $i_ \alpha$ and covariant index $j_ \beta$, using dummy index $g$. We will write this as $T^{i[\mu]:i_\alpha=g}_ {j[\nu]:j_\beta=g}$. Finally, in the case where we want to simply omit a pair of indices $i_\alpha$ and $j_\beta$, we will write $T^{i[\mu]\setminus i_\alpha}_ {j[\nu]\setminus j_\beta}$.</p>
+<p>So yeah obviously we're going to define Tensor Derivation now. It must satisfy the following rules:</p>
+<ul>
+<li>Size preservation: Given a tensor $T^{i[\mu]}_ {j[\nu]}$, its tensor derivation $\mathbb{D}\left(T^{i[\mu]}_ {j[\nu]}\right)$ contains the same indices with the same sizes. As such, we will write this as $\mathbb{D}\left(T^{i[\mu]}_ {j[\nu]}\right)^{i[\mu]}_ {j[\nu]}$. Note that in this case, the two sets of indices do not interact.</li>
+<li>Linearity: $\mathbb{D}\left(aA^{i[\mu]}_ {j[\nu]}+bB^{i[\mu]}_ {j[\nu]}\right)^{i[\mu]}_ {j[\nu]}=a\mathbb{D}\left(A^{i[\mu]}_ {j[\nu]}\right)^{i[\mu]}_ {j[\nu]}+b\mathbb{D}\left(B^{i[\mu]}_ {j[\nu]}\right)^{i[\mu]}_ {j[\nu]}$ for scalars $a,b$ and tensors of equal size $A,B$.</li>
+<li>The Product Rule: Given tensor $A$ with $\mu_A$ contravariant indices and $\nu_A$ covariant indices, and tensor $B$ with $\mu_B$ contravariant indices and $\nu_B$ covariant indices, the tensor derivation of their product (without contraction) is $\mathbb{D}\left(A^{i[\mu_A]}_ {j[\nu_A]}B^{k[\mu_B]}_ {l[\nu_B]}\right)^{i[\mu_A]k[\mu_B]}_ {j[\nu_A]l[\nu_B]}=A^{i[\mu_A]}_ {j[\nu_A]}\mathbb{D}\left(B^{k[\mu_B]}_ {l[\nu_B]}\right)^{k[\mu_B]}_ {l[\nu_B]}+\mathbb{D}\left(A^{i[\mu_A]}_ {j[\nu_A]}\right)^{i[\mu_A]}_ {j[\nu_A]}B^{k[\mu_B]}_ {l[\nu_B]}$. Notice that this is effectively the same as in matrix derivation, just with lots more indices for full generality.</li>
+<li>Invariance under contraction: In order to recover the regular matrix derivation, we want contraction to be preserved by the tensor derivation. Specifically, given a tensor contraction $T^{i[\mu]:i_\alpha=g}_ {j[\nu]:j_\beta=g}$, its tensor derivation will have the form $\mathbb{D}\left(T^{i[\mu]:i_\alpha=g}_ {j[\nu]:j_\beta=g}\right)^{i[\mu]\setminus i_\alpha}_ {j[\nu]\setminus j_\beta}$. Note that because $i_\alpha$ and $j_\beta$ are contracted over in $T$, those indices are removed from the calculated tensor derivation. And because we want contraction to be preserved, we can require that this equals $\mathbb{D}\left(T^{i[\mu]:i_\alpha=g}_ {j[\nu]:j_\beta=g}\right)^{i[\mu]\setminus i_\alpha}_ {j[\nu]\setminus j_\beta}=\mathbb{D}\left(T^{i[\mu]}_ {j[\nu]}\right)^{i[\mu]:i_\alpha=g}_ {j[\nu]:j_\beta=g}$. See why the notation is useful?</li>
+</ul>
+<p>Let's quickly validate that this formulation recovers the matrix derivation we had earlier. We want to find the tensor derivation of $A^i_ j B^j_ l$ the matrix product: $\mathbb{D}\left(A^i_ j B^j_ l\right)^i_ l=\mathbb{D}\left(A^i_ j B^k_ l\right)^{ij}_ {jl}=A^i_ j\mathbb{D}\left(B^j_ l\right)^j_ l+\mathbb{D}\left(A^i_ j \right)^i_ j B^j_ l$, which is exactly the formula for the product rule for the matrix derivation we had earlier. As a bonus, the trace of a matrix derivation is always zero, proved as follows: Because the trace is linear, $\text{tr}\left(\mathbb{D}(A)\right)=\text{tr}\left(D_{(n)}A\right)-\text{tr}\left(AD_{(n)}\right)$. Finally, because the trace of a product equals the trace of the swapped product, $\text{tr}\left(\mathbb{D}(A)\right)=\text{tr}\left(D_{(n)}A\right)-\text{tr}\left(D_{(n)}A\right)=0$. This agrees with the fact that the matrix derivative of a $1\times 1$ matrix is zero.</p>
+<p>Because it obeys effectively the same rules as the matrix derivation, it has exactly the same solution. For a tensor $v^i$ with only one contravariant index of size $n$ (called a contravariant vector), there is a tensor $d(n)^i_ j$ such that $\mathbb{D}\left(v^i\right)^i=d(n)^i_ j v^j$. Then, for a tensor $u_j$ with only one covariant index of size $m$ (called a covariant vector), we use the set of tensors $d(m)$ such that $\mathbb{D}\left(u_ j\right)^i=-d(m)^i_ j u_ j$. For a product like $v^i u_ j$, $\mathbb{D}\left(v^i u_ j\right)^i_ j= d(n)^i_ k v^k u_ j - v^i u_ l d(m)^l_ j$, which looks an awful lot like the formula we had above. However, if we instead had a product of two contravariant vectors $v^i$ with size $n$ and $w^j$ with size $m$, then the tensor derivation would instead be $\mathbb{D}\left(v^i w^j\right)^{ij}= d(n)^i_ k v^k w^j + v^i w^l d(m)^j_ l$. Two covariant indices $u_i$ and $t_j$ would have $\mathbb{D}\left(u_ i t_ j\right)_ {ij}=-d(n)^k_ i u_ k t_ j - u_ i t_ l d(m)^l_ j$. And as we add more and more indices, the pattern continues on like this.</p>
+<h2 id="reflection">Reflection</h2>
+<p>That's about it! Sometimes you try to solve some math problem or make some generalization outside the original scope of the theory and it doesn't really go anywhere. I was pleased that not only is it actually possible to construct a consistent system with these properties, but that it turned out to have such a simple formulation. I'm not expecting this to really lead to any further insights beyond the fact that it's possible and has this form, but it was a fun problem nonetheless and I learned a fair bit going about it. When you do enough of these types of problems, you get a stronger sense for basic concepts like what it means to take a product of two things, what it means for something to be linear, and how coefficients appear and why. You also get a better sense for what kinds of problems actually have nice solutions and which ones won't go anywhere.</p>
+<p>And you can just do things! You can create your own puzzles, solve them, and learn a lot along the way. These kinds of problems have prepared me to understand more complex concepts and work on problems with more impact. Hopefully you're now inspired to do some interesting math of your own!</p>
+
+
+    </div>
+  </section>
+</body>
+
+</html>
