@@ -3,8 +3,9 @@ title = "Matrix Derivation: What if the derivative, but matrices?"
 date = 2025-07-22
 
 [extra]
-subtitle = "10 min read. Published 2025-07-22. Last edited 2025-07-25."
+subtitle = "MATH. 10 min read. Published 2025-07-22. Last edited 2025-07-25."
 tab_title = "Matrix Derivation"
+katex = true
 +++
 
 **This post has now been formalized in Lean!** [Check it out here.](https://github.com/stopthrowingrocks/mathematics-in-lean/blob/master/src/matrix-derivation.lean)

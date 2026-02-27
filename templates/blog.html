@@ -4,11 +4,12 @@
 <h1 class="title">
   {{ section.title }}
 </h1>
-<ul>
-  <!-- If you are using pagination, section.pages will be empty.
-    You need to use the paginator object -->
-  {% for page in section.pages %}
-  <li><a href="{{ page.permalink | safe }}">{{ page.title }}</a></li>
-  {% endfor %}
-</ul>
+<!-- If you are using pagination, section.pages will be empty.
+  You need to use the paginator object -->
+{% for page in section.pages %}
+<div>
+  <h2 style="margin-bottom: 0px"><a href="{{ page.permalink | safe }}" style="color: black">{{ page.title }}</a></h2>
+  <div>{{ page.extra.subtitle }}</div>
+</div>
+{% endfor %}
 {% endblock content %}
