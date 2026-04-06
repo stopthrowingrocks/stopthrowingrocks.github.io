@@ -22,8 +22,8 @@ const ITER_FRAG = `#version 300 es
 precision highp float;
 
 uniform vec2  u_res;
-uniform vec2  u_ctr_x;   // cx as double-double (hi, lo)
-uniform vec2  u_ctr_y;   // cy as double-double (hi, lo)
+uniform vec2  u_ctr_x;   // center of the screen, cx as double-double (hi, lo)
+uniform vec2  u_ctr_y;   // center of the screen, cy as double-double (hi, lo)
 uniform float u_pxsz;    // world units per pixel
 uniform float u_iters;
 
@@ -38,15 +38,22 @@ vec2 twoSum(float a, float b) {
     return vec2(s, (a - (s - v)) + (b - v));
 }
 
+// First argument should be the larger one
+// Confirmed to work in regular JS with floats like 0.2 + 0.1
 vec2 quickTwoSum(float a, float b) {
     float s = a + b;
-    return vec2(s, b - (s - a));
+    float t = b - (s - a);
+    if (t != 0.0) { t = 1.0; } // TODO This should be activated at least once
+    return vec2(s, t);
 }
 
 vec2 split(float a) {
     float t  = 4097.0 * a;
-    float hi = t - (t - a);
-    return vec2(hi, a - hi);
+    float diff = float(t - a);
+    float hi = t - diff;
+    float low = a - hi;
+    if (hi != a) { hi = 1.0; } // TODO This should be activated at least once
+    return vec2(hi, low);
 }
 
 vec2 twoProd(float a, float b) {
@@ -83,6 +90,7 @@ void main() {
     vec2 offset = gl_FragCoord.xy - u_res * 0.5;
 
     // c = center + offset * pixelSize
+    // TODO check that this allows for small values
     vec2 px = dd_add(u_ctr_x, vec2(offset.x * u_pxsz, 0.0));
     vec2 py = dd_add(u_ctr_y, vec2(offset.y * u_pxsz, 0.0));
 
@@ -99,11 +107,12 @@ void main() {
         ey = zy.x;
         float r2 = ex * ex + ey * ey;
         if (r2 > ESC2 || r2 != r2) { n = i; break; }
-        vec2 zx2 = dd_mul(zx, zx);
-        vec2 zy2 = dd_mul(zy, zy);
-        vec2 zxy = dd_mul(zx, zy);
-        zx = dd_add(dd_sub(zx2, zy2), px);
-        zy = dd_add(dd_add(zxy, zxy), py);
+        vec2 zx_pl_y = dd_add(zx, zy);
+        vec2 zx_mn_y = dd_sub(zx, zy);
+        vec2 zx2_mn_y2 = dd_mul(zx_mn_y, zx_pl_y);
+        vec2 z2xy = 2.0 * dd_mul(zx, zy);
+        zx = dd_add(zx2_mn_y2, px);
+        zy = dd_add(z2xy, py);
     }
 
     if (n == -1) {

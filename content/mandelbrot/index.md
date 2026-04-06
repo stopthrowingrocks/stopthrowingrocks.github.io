@@ -11,7 +11,7 @@ tab_title = "Mandelbrot"
 <canvas id="c"></canvas>
 <div id="no-webgl" hidden>WebGL is not available in this browser.</div>
 
-<div id="ui">
+<div id="ui"> 
     <h3>Mandelbrot</h3>
     <div id="palettes"><!-- filled by JS --></div>
     <div class="row">
