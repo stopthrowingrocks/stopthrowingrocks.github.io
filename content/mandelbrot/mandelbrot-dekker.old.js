@@ -1,6 +1,7 @@
 // Mandelbrot Set Explorer
-// Single-precision float Mandelbrot iteration on the GPU.
-// Zoom depth limited to ~10^7 by float32 mantissa (~24 bits).
+// Deep zoom via perturbation theory: a reference orbit is computed in float64
+// on the CPU, then the GPU computes small single-precision deltas per pixel.
+// Supports zoom depths up to ~10^15.
 //
 // Two-pass rendering:
 //   Pass 1 (iteration): computes smooth escape time → packed RGBA8 texture (only on geometry change)
@@ -14,48 +15,105 @@ void main() {
     gl_Position = vec4(a_pos, 0.0, 1.0);
 }`;
 
-// Pass 1: compute smooth escape time, pack into RGB; alpha=0 for interior, 1 for exterior.
+// Pass 1: compute smooth escape time via Dekker DD arithmetic (vec2 = hi+lo).
+// Uses fma() for exact error-free products and bit-cast barriers to prevent
+// GLSL compiler algebraic simplification of error terms.
 const ITER_FRAG = `#version 300 es
+#pragma optimize("", off)
 precision highp float;
 
 uniform vec2  u_res;
-uniform float u_cx;       // center x
-uniform float u_cy;       // center y
+uniform vec2  u_ctr_x;   // center of the screen, cx as double-double (hi, lo)
+uniform vec2  u_ctr_y;   // center of the screen, cy as double-double (hi, lo)
 uniform float u_pxsz;    // world units per pixel
 uniform float u_iters;
 
 out vec4 fragColor;
 
+// ── Dekker Double-Double (DD) arithmetic ──────────────────────────────────
+// A DD number is vec2(hi, lo) with true value = hi + lo.
+
+vec2 twoSum(float a, float b) {
+    float s = a + b;
+    float v = s - a;
+    return vec2(s, (a - (s - v)) + (b - v));
+}
+
+// First argument should be the larger one
+// Confirmed to work in regular JS with floats like 0.2 + 0.1
+vec2 quickTwoSum(float a, float b) {
+    float s = a + b;
+    float t = b - (s - a);
+    if (t != 0.0) { t = 1.0; } // TODO This should be activated at least once
+    return vec2(s, t);
+}
+
+vec2 split(float a) {
+    float t  = 4097.0 * a;
+    float diff = float(t - a);
+    float hi = t - diff;
+    float low = a - hi;
+    if (hi != a) { hi = 1.0; } // TODO This should be activated at least once
+    return vec2(hi, low);
+}
+
+vec2 twoProd(float a, float b) {
+    float p  = a * b;
+    vec2  sa = split(a);
+    vec2  sb = split(b);
+    float e  = ((sa.x * sb.x - p) + sa.x * sb.y + sa.y * sb.x) + sa.y * sb.y;
+    return vec2(p, e);
+}
+
+// DD addition
+vec2 dd_add(vec2 a, vec2 b) {
+    vec2 s = twoSum(a.x, b.x);
+    vec2 t = twoSum(a.y, b.y);
+    s.y += t.x;
+    s = quickTwoSum(s.x, s.y);
+    s.y += t.y;
+    return quickTwoSum(s.x, s.y);
+}
+
+// DD subtraction
+vec2 dd_sub(vec2 a, vec2 b) {
+    return dd_add(a, vec2(-b.x, -b.y));
+}
+
+// DD multiplication
+vec2 dd_mul(vec2 a, vec2 b) {
+    vec2 p = twoProd(a.x, b.x);
+    p.y += a.x * b.y + a.y * b.x;
+    return quickTwoSum(p.x, p.y);
+}
+
 void main() {
     vec2 offset = gl_FragCoord.xy - u_res * 0.5;
 
-    float cx = u_cx + offset.x * u_pxsz;
-    float cy = u_cy + offset.y * u_pxsz;
+    // c = center + offset * pixelSize
+    // TODO check that this allows for small values
+    vec2 px = dd_add(u_ctr_x, vec2(offset.x * u_pxsz, 0.0));
+    vec2 py = dd_add(u_ctr_y, vec2(offset.y * u_pxsz, 0.0));
 
-    float zx = 0.0, zy = 0.0;
+    vec2 zx = vec2(0.0);
+    vec2 zy = vec2(0.0);
 
-    // Escape radius 16: once |z|>16, |z²+c| ≥ 16²−2 = 254 > 16,
-    // so the orbit can never return. Safe to check every 2 iterations.
     const float ESC2 = 256.0;
-    int n = -1;
+    int  n  = -1;
+    float ex = 0.0, ey = 0.0;
 
-    for (int i = 0; i < 65536; i += 2) {
+    for (int i = 0; i < 65536; i++) {
         if (float(i) >= u_iters) break;
-
-        // Iteration i
-        float nx = zx * zx - zy * zy + cx;
-        float ny = 2.0 * zx * zy + cy;
-
-        // Iteration i+1
-        zx = nx * nx - ny * ny + cx;
-        zy = 2.0 * nx * ny + cy;
-
-        // Check escape after both iterations.
-        // Smooth coloring stays continuous: if escape happened at i,
-        // then at i+1  z ≈ z², so log₂(log₂|z|) increases by ~1,
-        // exactly compensating the +1 in n.
-        float r2 = zx * zx + zy * zy;
-        if (r2 > ESC2 || r2 != r2) { n = i + 2; break; }
+        ex = zx.x;
+        ey = zy.x;
+        float r2 = ex * ex + ey * ey;
+        if (r2 > ESC2 || r2 != r2) { n = i; break; }
+        vec2 zx_pl_y = dd_add(zx, zy);
+        vec2 zx_mn_y = dd_sub(zx, zy);
+        vec2 zx2_mn_y2 = dd_mul(zx_mn_y, zx_pl_y);
+        vec2 z2xy = 2.0 * dd_mul(zx, zy);
+        zx = dd_add(zx2_mn_y2, px);
+        zy = dd_add(z2xy, py);
     }
 
     if (n == -1) {
@@ -63,7 +121,7 @@ void main() {
         return;
     }
 
-    float r2      = clamp(zx * zx + zy * zy, 5.0, 1e30);
+    float r2      = clamp(ex * ex + ey * ey, 5.0, 1e30);
     float log_r   = log(r2) * 0.5;
     float nu      = log(log_r / log(2.0)) / log(2.0);
     float smoothV = float(n) + 1.0 - nu;
@@ -125,13 +183,13 @@ const PALETTES = [
 // ─── State ───────────────────────────────────────────────────────────────────
 
 const state = {
-    cx: -0.5, cy: 0.0,
-    zoom: 250.0,
-    maxIter: +document.getElementById('iter-val').textContent,
+    cx: -0.5, cy: 0.0,   // float64 center
+    zoom: 250.0,          // pixels per world unit
+    maxIter: 4096,
     palIdx: 0,
-    palOffset:  +document.getElementById('pal-offset').value,
-    colorScale: +document.getElementById('color-scale').value,
-    brightFreq: +document.getElementById('bright-freq').value,
+    palOffset: 0.0,
+    colorScale: 9,
+    brightFreq: 16,
 };
 
 let gl;
@@ -146,13 +204,7 @@ let dragX = 0, dragY = 0, dragCX = 0, dragCY = 0;
 
 // ─── Animation ───────────────────────────────────────────────────────────────
 
-const anim = {
-    playing: document.getElementById('anim-play').textContent === '⏸',
-    speed:   +document.getElementById('anim-speed').value,
-    dir:     document.getElementById('anim-dir').textContent === '→' ? 1 : -1,
-    rafId:   null,
-    lastT:   null,
-};
+const anim = { playing: true, speed: 0.15, dir: -1, rafId: null, lastT: null };
 
 function animTick(t) {
     if (!anim.playing) return;
@@ -203,6 +255,13 @@ function createProgram(vertSrc, fragSrc) {
     return p;
 }
 
+// Split a float64 into a double-double pair [hi, lo] of float32 values.
+function splitDD(x) {
+    const hi = Math.fround(x);
+    const lo = Math.fround(x - hi);
+    return [hi, lo];
+}
+
 // ─── Render ──────────────────────────────────────────────────────────────────
 
 function render() {
@@ -230,11 +289,14 @@ function render() {
         gl.viewport(0, 0, w, h);
         gl.useProgram(iterProg);
 
-        gl.uniform2f(iterUniforms.u_res,   w, h);
-        gl.uniform1f(iterUniforms.u_cx,    state.cx);
-        gl.uniform1f(iterUniforms.u_cy,    state.cy);
-        gl.uniform1f(iterUniforms.u_pxsz,  1.0 / (state.zoom * dpr));
-        gl.uniform1f(iterUniforms.u_iters, state.maxIter);
+        const cx = splitDD(state.cx);
+        const cy = splitDD(state.cy);
+
+        gl.uniform2f(iterUniforms.u_res,    w, h);
+        gl.uniform2fv(iterUniforms.u_ctr_x, cx);
+        gl.uniform2fv(iterUniforms.u_ctr_y, cy);
+        gl.uniform1f(iterUniforms.u_pxsz,   1.0 / (state.zoom * dpr));
+        gl.uniform1f(iterUniforms.u_iters,  state.maxIter);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
         gl.enableVertexAttribArray(quadAPos_iter);
@@ -272,9 +334,6 @@ function render() {
     gl.enableVertexAttribArray(quadAPos_color);
     gl.vertexAttribPointer(quadAPos_color, 2, gl.FLOAT, false, 0, 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-    // Redraw orbit overlay when view changes
-    if (typeof drawOrbit === 'function') drawOrbit();
 }
 
 // ─── Events ──────────────────────────────────────────────────────────────────
@@ -443,12 +502,6 @@ function initUI() {
     document.getElementById('iter-up').addEventListener('click',   () => adjustIter(2));
     document.getElementById('reset').addEventListener('click', reset);
 
-    // Show current value as tooltip on all sliders
-    document.querySelectorAll('#ui input[type=range]').forEach(s => {
-        s.title = s.value;
-        s.addEventListener('input', () => { s.title = s.value; });
-    });
-
     updatePalButtons();
     updateInfo();
 
@@ -511,7 +564,7 @@ function init() {
     if (!iterProg || !colorProg) return;
 
     iterUniforms = {};
-    for (const name of ['u_res', 'u_cx', 'u_cy', 'u_pxsz', 'u_iters']) {
+    for (const name of ['u_res', 'u_ctr_x', 'u_ctr_y', 'u_pxsz', 'u_iters']) {
         iterUniforms[name] = gl.getUniformLocation(iterProg, name);
     }
     colorUniforms = {};
@@ -542,237 +595,7 @@ function init() {
 
     initEvents(canvas);
     initUI();
-    initOrbit();
     render();
-}
-
-// ─── Orbit Visualizer ────────────────────────────────────────────────────────
-
-const orbit = {
-    enabled: false,
-    cx: -0.5, cy: 0.0,
-    dragging: false,
-    points: [],         // computed orbit points [[x,y], ...]
-    hoverIdx: -1,       // index of point under cursor, or -1
-    hoverVal: null,     // complex string of hovered point
-};
-
-let orbitCtx;
-
-function initOrbit() {
-    const oc = document.getElementById('orbit-canvas');
-    const canvas = document.getElementById('c');
-    orbitCtx = oc.getContext('2d');
-
-    document.getElementById('orbit-toggle').addEventListener('click', () => {
-        orbit.enabled = !orbit.enabled;
-        document.getElementById('orbit-toggle').classList.toggle('active', orbit.enabled);
-        if (orbit.enabled) {
-            orbit.cx = state.cx;
-            orbit.cy = state.cy;
-        }
-        drawOrbit();
-    });
-
-    // Hook into the main canvas: shift+click places/drags orbit point,
-    // normal click/drag does pan as usual.
-    canvas.addEventListener('mousedown', (e) => {
-        if (!orbit.enabled || !e.shiftKey || e.button !== 0) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const rect = canvas.getBoundingClientRect();
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const sx = (e.clientX - rect.left) * dpr;
-        const sy = (e.clientY - rect.top) * dpr;
-
-        // Check if near existing orbit point → drag it
-        const px = worldToScreen(orbit.cx, orbit.cy);
-        if (Math.hypot(sx - px[0], sy - px[1]) < 16 * dpr) {
-            orbit.dragging = true;
-        } else {
-            // Place at click position
-            const w = screenToWorld(sx, sy);
-            orbit.cx = w[0];
-            orbit.cy = w[1];
-            orbit.dragging = true;
-            drawOrbit();
-        }
-    }, true);  // capture phase so we can stop propagation before pan handler
-
-    window.addEventListener('mousemove', (e) => {
-        if (!orbit.dragging) return;
-        const rect = canvas.getBoundingClientRect();
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const sx = (e.clientX - rect.left) * dpr;
-        const sy = (e.clientY - rect.top) * dpr;
-        const w = screenToWorld(sx, sy);
-        orbit.cx = w[0];
-        orbit.cy = w[1];
-        drawOrbit();
-    });
-
-    window.addEventListener('mouseup', () => {
-        orbit.dragging = false;
-    });
-
-    // Hover detection: show tooltip near orbit points
-    const tip = document.getElementById('orbit-tip');
-    canvas.addEventListener('mousemove', (e) => {
-        if (!orbit.enabled || orbit.points.length === 0) {
-            tip.hidden = true;
-            orbit.hoverIdx = -1;
-            orbit.hoverVal = null;
-            return;
-        }
-        const rect = canvas.getBoundingClientRect();
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const sx = (e.clientX - rect.left) * dpr;
-        const sy = (e.clientY - rect.top) * dpr;
-
-        // Also check the c point itself
-        const allPts = [[orbit.cx, orbit.cy], ...orbit.points];
-        let closest = -1, closestDist = Infinity;
-        for (let i = 0; i < allPts.length; i++) {
-            const p = worldToScreen(allPts[i][0], allPts[i][1]);
-            const d = Math.hypot(sx - p[0], sy - p[1]);
-            if (d < closestDist) { closestDist = d; closest = i; }
-        }
-
-        if (closestDist < 12 * dpr && closest >= 0) {
-            const pt = allPts[closest];
-            const re = pt[0], im = pt[1];
-            const sign = im >= 0 ? '+' : '';
-            const label = closest === 0 ? 'c' : `z${closest}`;
-            orbit.hoverVal = `${re}${sign}${im}i`;
-            orbit.hoverIdx = closest;
-            tip.textContent = `${label} = ${orbit.hoverVal}`;
-            tip.hidden = false;
-            tip.style.left = `${e.clientX + 14}px`;
-            tip.style.top = `${e.clientY - 10}px`;
-        } else {
-            tip.hidden = true;
-            orbit.hoverIdx = -1;
-            orbit.hoverVal = null;
-        }
-    });
-
-    canvas.addEventListener('mouseleave', () => {
-        tip.hidden = true;
-        orbit.hoverIdx = -1;
-        orbit.hoverVal = null;
-    });
-
-    // Ctrl+C while hovering copies the complex value
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'c' && (e.ctrlKey || e.metaKey) && orbit.hoverVal) {
-            e.preventDefault();
-            navigator.clipboard.writeText(orbit.hoverVal);
-            tip.textContent += ' ✓';
-            setTimeout(() => { tip.hidden = true; }, 600);
-        }
-        // Ctrl+V pastes a complex number as the orbit point
-        if (e.key === 'v' && (e.ctrlKey || e.metaKey) && orbit.enabled) {
-            navigator.clipboard.readText().then(text => {
-                // Parse formats: a+bi, a-bi, a + bi, z≈a + bi, etc.
-                const m = text.trim().match(/([+-]?\d*\.?\d+(?:e[+-]?\d+)?)\s*([+-]\s*\d*\.?\d+(?:e[+-]?\d+)?)\s*\*?\s*i\b/i);
-                if (m) {
-                    orbit.cx = parseFloat(m[1]);
-                    orbit.cy = parseFloat(m[2].replace(/\s/g, ''));
-                    drawOrbit();
-                }
-            }).catch(() => {});
-        }
-    });
-}
-
-function worldToScreen(wx, wy) {
-    const canvas = gl.canvas;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = canvas.width, h = canvas.height;
-    const sx = (wx - state.cx) * state.zoom * dpr + w / 2;
-    const sy = h / 2 - (wy - state.cy) * state.zoom * dpr;
-    return [sx, sy];
-}
-
-function screenToWorld(sx, sy) {
-    const canvas = gl.canvas;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = canvas.width, h = canvas.height;
-    const wx = state.cx + (sx - w / 2) / (state.zoom * dpr);
-    const wy = state.cy + (h / 2 - sy) / (state.zoom * dpr);
-    return [wx, wy];
-}
-
-function drawOrbit() {
-    const oc = document.getElementById('orbit-canvas');
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    oc.width = Math.round(oc.clientWidth * dpr);
-    oc.height = Math.round(oc.clientHeight * dpr);
-    const ctx = orbitCtx;
-    ctx.clearRect(0, 0, oc.width, oc.height);
-
-    if (!orbit.enabled) return;
-
-    // Compute orbit in float64
-    const maxIter = state.maxIter;
-    const cx = orbit.cx, cy = orbit.cy;
-    let zx = 0, zy = 0;
-    orbit.points = [];
-    let escaped = -1;
-
-    for (let i = 0; i < maxIter; i++) {
-        const nx = zx * zx - zy * zy + cx;
-        const ny = 2 * zx * zy + cy;
-        zx = nx; zy = ny;
-        orbit.points.push([zx, zy]);
-        if (zx * zx + zy * zy > 256) { escaped = i + 1; break; }
-    }
-    const points = orbit.points;
-
-    // Draw lines
-    ctx.strokeStyle = 'rgba(255, 80, 80, 0.5)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i = 0; i < points.length; i++) {
-        const p = worldToScreen(points[i][0], points[i][1]);
-        if (i === 0) ctx.moveTo(p[0], p[1]);
-        else ctx.lineTo(p[0], p[1]);
-    }
-    ctx.stroke();
-
-    // Draw dots
-    for (let i = 0; i < points.length; i++) {
-        const p = worldToScreen(points[i][0], points[i][1]);
-        ctx.fillStyle = i === 0 ? '#ff3333' : 'rgba(255, 80, 80, 0.7)';
-        ctx.beginPath();
-        ctx.arc(p[0], p[1], i === 0 ? 6 : 2, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    // Draw starting point (c) as larger draggable circle
-    const cp = worldToScreen(cx, cy);
-    ctx.strokeStyle = '#ff3333';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cp[0], cp[1], 8, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Show escape info
-    const infoEl = document.getElementById('orbit-info');
-    if (escaped > 0) {
-        infoEl.textContent = `escaped @ ${escaped}`;
-        infoEl.style.color = '#f88';
-
-        // Draw escape label at final point
-        const last = points[points.length - 1];
-        const lp = worldToScreen(last[0], last[1]);
-        ctx.font = `${12 * dpr}px monospace`;
-        ctx.fillStyle = '#ff6666';
-        ctx.fillText(`n=${escaped}`, lp[0] + 10, lp[1] - 6);
-    } else {
-        infoEl.textContent = `bounded (${maxIter})`;
-        infoEl.style.color = '#8f8';
-    }
 }
 
 window.addEventListener('DOMContentLoaded', init);
