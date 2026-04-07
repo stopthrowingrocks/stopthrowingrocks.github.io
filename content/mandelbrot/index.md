@@ -3,7 +3,7 @@ title = "Mandelbrot Explorer"
 date = 2026-04-02
 
 [extra]
-subtitle = "WebGL Mandelbrot set explorer with emulated double-precision for deep zoom."
+subtitle = "WebGL Mandelbrot set explorer."
 tab_title = "Mandelbrot"
 +++
 
