@@ -1,0 +1,147 @@
+/* Break out of the site's container so the canvas can be full-screen */
+body   { margin: 0; overflow: hidden; background: #000; }
+.section   { padding: 0 !important; }
+.container { max-width: none !important; padding: 0 !important; }
+
+#c {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+}
+#c:active { cursor: grabbing; }
+
+#orbit-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+}
+/* orbit canvas is always pointer-events: none; interaction handled via main canvas */
+
+#orbit-tip {
+    position: fixed;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    font-family: monospace;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 50;
+}
+
+#no-webgl:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    background: #111;
+    color: #ccc;
+    font-family: monospace;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── Controls panel ──────────────────────────────────────────────────────── */
+#ui {
+    position: fixed;
+    bottom: 1.2rem;
+    right: 1.2rem;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #ddd;
+    font-family: monospace;
+    font-size: 0.78rem;
+    padding: 0.85rem 1rem;
+    min-width: 230px;
+    user-select: none;
+}
+
+#ui h3 {
+    margin: 0 0 0.6rem;
+    font-size: 0.9rem;
+    color: #fff;
+    letter-spacing: 0.08em;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.45rem;
+}
+
+.lbl {
+    min-width: 5.5rem;
+    color: #999;
+}
+
+#palettes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+#palettes button, .ub {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #ccc;
+    padding: 0.15rem 0.45rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: monospace;
+    transition: background 0.12s;
+}
+#palettes button:hover, .ub:hover { background: rgba(255, 255, 255, 0.18); }
+#palettes button.active {
+    background: rgba(180, 180, 255, 0.3);
+    border-color: rgba(180, 180, 255, 0.6);
+    color: #fff;
+}
+
+input[type=range] {
+    flex: 1;
+    accent-color: #99aaff;
+    cursor: pointer;
+}
+
+#reset {
+    display: block;
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.25rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 0.78rem;
+    transition: background 0.12s;
+}
+#reset:hover { background: rgba(255, 255, 255, 0.18); }
+
+#zoom-val, #iter-val, #render-time, #orbit-info { color: #fff; min-width: 3.5rem; }
+
+/* ── Hints ───────────────────────────────────────────────────────────────── */
+#hints {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: monospace;
+    font-size: 0.7rem;
+    pointer-events: none;
+    line-height: 1.7;
+}

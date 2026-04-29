@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mandelbruh</title>
+
+  <!-- KaTeX -->
+  
+
+  <!-- CSS -->
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://stopthrowingrocks.github.io/main.css">
+</head>
+
+<body>
+  <section class="section">
+    <div class="container">
+      
+<h1 class="title">
+  Mandelbrot Explorer
+</h1>
+
+<p class="subtitle"><em>MATH. WebGL Mandelbrot set explorer. (Now with double zoom!)</em></p>
+<a href="/" style="color: black">See my other posts!</a>
+<link id="css" rel="stylesheet" type="text/css" href="css/style.css">
+<canvas id="c"></canvas>
+<canvas id="orbit-canvas"></canvas>
+<div id="orbit-tip" hidden></div>
+<div id="no-webgl" hidden>WebGL is not available in this browser.</div>
+<div id="ui">
+    <h3>Mandelbrot</h3>
+    <div id="palettes"><!-- filled by JS --></div>
+    <div class="row">
+        <span class="lbl">offset</span>
+        <input type="range" id="pal-offset" min="0" max="1" step="0.005" value="0">
+        <button class="ub" id="anim-play">⏸</button>
+        <button class="ub" id="anim-dir">←</button>
+    </div>
+    <div class="row">
+        <span class="lbl">anim speed</span>
+        <input type="range" id="anim-speed" min="0.02" max="1.01" step="0.01" value="0.15">
+    </div>
+    <div class="row">
+        <span class="lbl">color bands</span>
+        <input type="range" id="color-scale" min="0.5" max="60" step="0.25" value="9">
+    </div>
+    <div class="row">
+        <span class="lbl">brightness freq</span>
+        <input type="range" id="bright-freq" min="1" max="32" step="1" value="6">
+    </div>
+    <div class="row">
+        <span class="lbl">iterations</span>
+        <button class="ub" id="iter-down">−</button>
+        <span id="iter-val">1024</span>
+        <button class="ub" id="iter-up">+</button>
+    </div>
+    <div class="row">
+        <span class="lbl">zoom</span>
+        <span id="zoom-val">2.50e+2</span>
+        <span id="dd-note" hidden style="font-style:italic;color:grey;font-size:0.85em;">dekker</span>
+    </div>
+    <div class="row">
+        <span class="lbl">render time</span>
+        <span id="render-time">—</span>
+    </div>
+    <div class="row">
+        <button class="ub" id="orbit-toggle">Orbit</button>
+        <span id="orbit-info"></span>
+    </div>
+    <div class="row">
+        <span class="lbl">orb. period</span>
+        <button class="ub" id="period-toggle">off</button>
+        <button class="ub" id="period-down">−</button>
+        <span id="period-val">100</span>
+        <button class="ub" id="period-up">+</button>
+    </div>
+    <div class="row">
+        <span class="lbl">orb. tolerance</span>
+        <button class="ub" id="tol-down" hidden>−</button>
+        <span id="tol-val">—</span>
+        <button class="ub" id="tol-up" hidden>+</button>
+        <button class="ub" id="tol-auto">→ manual</button>
+    </div>
+    <button id="reset">Reset view</button>
+    <button id="copy-link">copy link</button>
+</div>
+<div id="hints">
+    scroll · zoom &nbsp;|&nbsp; drag · pan &nbsp;|&nbsp; shift+click · orbit<br>
+    P · cycle palette &nbsp;|&nbsp; ± · iterations &nbsp;|&nbsp; R · reset
+</div>
+<script src="mandelbrot.js" type="module"></script>
+
+
+    </div>
+  </section>
+</body>
+
+</html>
