@@ -1,1 +1,0 @@
-I would like to be using Dekker double-double arithmetic (using two floats to store one value) but it seems that the GLSL compiler is optimizing the Dekker calculations away. Like `t - (t - a)` gets compiled to just `a`.

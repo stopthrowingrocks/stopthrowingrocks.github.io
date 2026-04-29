@@ -1,10 +1,10 @@
 +++
 title = "Mandelbrot Explorer"
-date = 2026-04-02
+date = 2026-04-28
 
 [extra]
-subtitle = "WebGL Mandelbrot set explorer."
-tab_title = "Mandelbrot"
+subtitle = "MATH. WebGL Mandelbrot set explorer. (Now with double zoom!)"
+tab_title = "Mandelbruh"
 +++
 
 <link id="css" rel="stylesheet" type="text/css" href="css/style.css">
@@ -13,7 +13,7 @@ tab_title = "Mandelbrot"
 <div id="orbit-tip" hidden></div>
 <div id="no-webgl" hidden>WebGL is not available in this browser.</div>
 
-<div id="ui"> 
+<div id="ui">
     <h3>Mandelbrot</h3>
     <div id="palettes"><!-- filled by JS --></div>
     <div class="row">
@@ -37,12 +37,13 @@ tab_title = "Mandelbrot"
     <div class="row">
         <span class="lbl">iterations</span>
         <button class="ub" id="iter-down">−</button>
-        <span id="iter-val">2048</span>
+        <span id="iter-val">1024</span>
         <button class="ub" id="iter-up">+</button>
     </div>
     <div class="row">
         <span class="lbl">zoom</span>
         <span id="zoom-val">2.50e+2</span>
+        <span id="dd-note" hidden style="font-style:italic;color:grey;font-size:0.85em;">dekker</span>
     </div>
     <div class="row">
         <span class="lbl">render time</span>
@@ -52,7 +53,22 @@ tab_title = "Mandelbrot"
         <button class="ub" id="orbit-toggle">Orbit</button>
         <span id="orbit-info"></span>
     </div>
+    <div class="row">
+        <span class="lbl">orb. period</span>
+        <button class="ub" id="period-toggle">off</button>
+        <button class="ub" id="period-down">−</button>
+        <span id="period-val">100</span>
+        <button class="ub" id="period-up">+</button>
+    </div>
+    <div class="row">
+        <span class="lbl">orb. tolerance</span>
+        <button class="ub" id="tol-down" hidden>−</button>
+        <span id="tol-val">—</span>
+        <button class="ub" id="tol-up" hidden>+</button>
+        <button class="ub" id="tol-auto">→ manual</button>
+    </div>
     <button id="reset">Reset view</button>
+    <button id="copy-link">copy link</button>
 </div>
 
 <div id="hints">

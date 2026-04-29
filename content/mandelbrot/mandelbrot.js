@@ -1,6 +1,7 @@
 // Mandelbrot Set Explorer
 // Single-precision float Mandelbrot iteration on the GPU.
 // Zoom depth limited to ~10^7 by float32 mantissa (~24 bits).
+// At zoom > 1e7, automatically switches to Dekker double-double arithmetic (~10^14 depth).
 //
 // Two-pass rendering:
 //   Pass 1 (iteration): computes smooth escape time → packed RGBA8 texture (only on geometry change)
@@ -15,14 +16,19 @@ void main() {
 }`;
 
 // Pass 1: compute smooth escape time, pack into RGB; alpha=0 for interior, 1 for exterior.
+// u_period > 0 enables orbit/periodicity detection: every u_period iterations the current
+// z is saved; if z returns within sqrt(u_period_eps) of the saved point, the orbit is
+// assumed bounded and the pixel is colored as interior (black).
 const ITER_FRAG = `#version 300 es
 precision highp float;
 
 uniform vec2  u_res;
-uniform float u_cx;       // center x
-uniform float u_cy;       // center y
-uniform float u_pxsz;    // world units per pixel
+uniform float u_cx;
+uniform float u_cy;
+uniform float u_pxsz;
 uniform float u_iters;
+uniform int   u_period;      // 0 = disabled
+uniform float u_period_eps;  // squared distance threshold
 
 out vec4 fragColor;
 
@@ -33,29 +39,33 @@ void main() {
     float cy = u_cy + offset.y * u_pxsz;
 
     float zx = 0.0, zy = 0.0;
+    float zx_ref = 0.0, zy_ref = 0.0;
+    int   period_ctr = 0;
 
-    // Escape radius 16: once |z|>16, |z²+c| ≥ 16²−2 = 254 > 16,
-    // so the orbit can never return. Safe to check every 2 iterations.
     const float ESC2 = 256.0;
     int n = -1;
 
-    for (int i = 0; i < 65536; i += 2) {
+    for (int i = 0; i < 65536; i++) {
         if (float(i) >= u_iters) break;
 
-        // Iteration i
         float nx = zx * zx - zy * zy + cx;
-        float ny = 2.0 * zx * zy + cy;
+        zy = 2.0 * zx * zy + cy;
+        zx = nx;
 
-        // Iteration i+1
-        zx = nx * nx - ny * ny + cx;
-        zy = 2.0 * nx * ny + cy;
-
-        // Check escape after both iterations.
-        // Smooth coloring stays continuous: if escape happened at i,
-        // then at i+1  z ≈ z², so log₂(log₂|z|) increases by ~1,
-        // exactly compensating the +1 in n.
         float r2 = zx * zx + zy * zy;
-        if (r2 > ESC2 || r2 != r2) { n = i + 2; break; }
+        if (r2 > ESC2 || r2 != r2) { n = i + 1; break; }
+
+        if (u_period > 0) {
+            float dx = zx - zx_ref;
+            float dy = zy - zy_ref;
+            if (dx * dx + dy * dy < u_period_eps) break;  // bounded; n stays -1
+            period_ctr++;
+            if (period_ctr >= u_period) {
+                zx_ref = zx;
+                zy_ref = zy;
+                period_ctr = 0;
+            }
+        }
     }
 
     if (n == -1) {
@@ -64,6 +74,134 @@ void main() {
     }
 
     float r2      = clamp(zx * zx + zy * zy, 5.0, 1e30);
+    float log_r   = log(r2) * 0.5;
+    float nu      = log(log_r / log(2.0)) / log(2.0);
+    float smoothV = float(n) + 1.0 - nu;
+
+    float norm = smoothV / 65536.0;
+    float r    = floor(norm * 255.0) / 255.0;
+    float g    = floor(fract(norm * 255.0) * 255.0) / 255.0;
+    float b    = fract(norm * 255.0 * 255.0);
+    fragColor = vec4(r, g, b, 1.0);
+}`;
+
+// Pass 1 (DD): Dekker double-double arithmetic for zoom > 1e7.
+// Center passed as float32 hi+lo pairs; u_one is an opaque 1.0 uniform
+// that prevents the GLSL compiler from algebraically simplifying error terms.
+const ITER_FRAG_DD = `#version 300 es
+precision highp float;
+
+uniform float u_one;
+uniform vec2  u_res;
+uniform vec2  u_ctr_x;   // center x as double-double (hi, lo)
+uniform vec2  u_ctr_y;   // center y as double-double (hi, lo)
+uniform float u_pxsz;
+uniform int   u_iters;
+uniform int   u_period;      // 0 = disabled
+uniform float u_period_eps;  // squared distance threshold (compared against full DD difference)
+
+out vec4 fragColor;
+
+vec2 twoSum(float a, float b) {
+    float s = (a + b) * u_one;
+    float v = (s - a) * u_one;
+    return vec2(s, (a - (s - v)) + (b - v) * u_one);
+}
+
+vec2 quickTwoSum(float a, float b) {
+    float s = (a + b) * u_one;
+    float t = b - (s - a);
+    return vec2(s, t);
+}
+
+vec2 split(float a) {
+    float t    = 4097.0 * a;
+    float diff = (t - a) * u_one;
+    float hi   = t - diff;
+    float lo   = a - hi;
+    return vec2(hi, lo);
+}
+
+vec2 twoProd(float a, float b) {
+    float p  = a * b;
+    vec2  sa = split(a);
+    vec2  sb = split(b);
+    float e  = ((sa.x * sb.x - p) + sa.x * sb.y + sa.y * sb.x) + sa.y * sb.y;
+    return vec2(p, e);
+}
+
+vec2 dd_add(vec2 a, vec2 b) {
+    vec2 s = twoSum(a.x, b.x);
+    vec2 t = twoSum(a.y, b.y);
+    s.y += t.x;
+    s = quickTwoSum(s.x, s.y);
+    s.y += t.y;
+    return quickTwoSum(s.x, s.y);
+}
+
+vec2 dd_sub(vec2 a, vec2 b) { return dd_add(a, vec2(-b.x, -b.y)); }
+
+vec2 dd_mul(vec2 a, vec2 b) {
+    vec2 p = twoProd(a.x, b.x);
+    p.y += a.x * b.y + a.y * b.x;
+    return quickTwoSum(p.x, p.y);
+}
+
+void main() {
+    vec2 offset = gl_FragCoord.xy - u_res * 0.5;
+
+    vec2 px = dd_add(u_ctr_x, vec2(offset.x * u_pxsz, 0.0));
+    vec2 py = dd_add(u_ctr_y, vec2(offset.y * u_pxsz, 0.0));
+
+    vec2 zx = vec2(0.0);
+    vec2 zy = vec2(0.0);
+    vec2 zx_ref = vec2(0.0);  // full DD reference — preserves lo-part for deep zoom
+    vec2 zy_ref = vec2(0.0);
+    int  period_ctr = 0;
+
+    const float ESC2 = 256.0;
+    int   n  = -1;
+    float ex = 0.0, ey = 0.0;
+
+    for (int i = 0; i < 65536; i++) {
+        if (i >= u_iters) break;
+        ex = zx.x;
+        ey = zy.x;
+        float r2 = ex * ex + ey * ey;
+        if (r2 > ESC2 || r2 != r2) { n = i; break; }
+
+        vec2 zx2_mn_y2 = dd_mul(dd_sub(zx, zy), dd_add(zx, zy));
+        vec2 z2xy      = 2.0 * dd_mul(zx, zy);
+        zx = dd_add(zx2_mn_y2, px);
+        zy = dd_add(z2xy, py);
+
+        if (u_period > 0) {
+            float dhx = zx.x - zx_ref.x;
+            float dhy = zy.x - zy_ref.x;
+            if (dhx * dhx + dhy * dhy < u_period_eps) {
+                // hi-parts close enough that cancellation may hide a match;
+                // full DD subtraction resolves the lo-part residual.
+                vec2 dzx = dd_sub(zx, zx_ref);
+                vec2 dzy = dd_sub(zy, zy_ref);
+                float dx = dzx.x + dzx.y;
+                float dy = dzy.x + dzy.y;
+                if (dx * dx + dy * dy < u_period_eps) {
+                    break;  // bounded; n stays -1
+                }
+            }
+            period_ctr++;
+            if (period_ctr >= u_period) {
+                zx_ref = zx; zy_ref = zy; period_ctr = 0;
+            }
+        }
+    }
+
+    if (n == -1) {
+        fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        return;
+    }
+
+    float r2      = clamp(ex * ex + ey * ey, 5.0, 1e30);
     float log_r   = log(r2) * 0.5;
     float nu      = log(log_r / log(2.0)) / log(2.0);
     float smoothV = float(n) + 1.0 - nu;
@@ -132,12 +270,25 @@ const state = {
     palOffset:  +document.getElementById('pal-offset').value,
     colorScale: +document.getElementById('color-scale').value,
     brightFreq: +document.getElementById('bright-freq').value,
+    periodEnabled: document.getElementById('period-toggle').textContent === 'off',
+    period:        +document.getElementById('period-val').textContent,
+    periodTolAuto: true, // true = tol computed from zoom; false = manual
+    periodTol:    1e-6,  // manual tolerance value (shader receives the square)
 };
 
+const DD_ZOOM_THRESHOLD = 1e7;
+
+// Split a JS float64 into a float32 double-double pair [hi, lo].
+function splitDD(x) {
+    const hi = Math.fround(x);
+    const lo = Math.fround(x - hi);
+    return [hi, lo];
+}
+
 let gl;
-let iterProg, colorProg;
-let iterUniforms, colorUniforms;
-let quadBuf, quadAPos_iter, quadAPos_color;
+let iterProg, iterProgDD, colorProg;
+let iterUniforms, iterUniformsDD, colorUniforms;
+let quadBuf, quadAPos_iter, quadAPos_iterDD, quadAPos_color;
 let iterFBO, iterTex, iterTexW = 0, iterTexH = 0;
 let iterDirty = true;
 
@@ -203,6 +354,74 @@ function createProgram(vertSrc, fragSrc) {
     return p;
 }
 
+function updatePeriodDisplay() {
+    const toggleBtn = document.getElementById('period-toggle');
+    const downBtn   = document.getElementById('period-down');
+    const valEl     = document.getElementById('period-val');
+    const upBtn     = document.getElementById('period-up');
+    if (toggleBtn) toggleBtn.textContent = state.periodEnabled ? 'off' : 'on';
+    if (downBtn)   downBtn.hidden  = !state.periodEnabled;
+    if (valEl)     { valEl.hidden  = !state.periodEnabled; valEl.textContent = state.period; }
+    if (upBtn)     upBtn.hidden    = !state.periodEnabled;
+}
+
+function getTolerance() {
+    return state.periodTolAuto ? 0.1 / state.zoom : state.periodTol;
+}
+
+function updateTolDisplay() {
+    const tol     = getTolerance();
+    const valEl   = document.getElementById('tol-val');
+    const autoBtn = document.getElementById('tol-auto');
+    const downBtn = document.getElementById('tol-down');
+    const upBtn   = document.getElementById('tol-up');
+    if (valEl)   valEl.textContent  = `${tol.toExponential(2)}`;
+    if (autoBtn) autoBtn.textContent = state.periodTolAuto ? '→ manual' : '→ auto';
+    if (downBtn) downBtn.hidden      = state.periodTolAuto;
+    if (upBtn)   upBtn.hidden        = state.periodTolAuto;
+}
+
+// ─── URL Checkpoints ─────────────────────────────────────────────────────────
+// Serialize/deserialize float64 as 16 hex chars via DataView for exact round-trips.
+
+function f64ToHex(v) {
+    const buf = new ArrayBuffer(8);
+    new DataView(buf).setFloat64(0, v);
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToF64(s) {
+    if (!s || s.length !== 16) return null;
+    const buf = new ArrayBuffer(8);
+    const u8  = new Uint8Array(buf);
+    for (let i = 0; i < 8; i++) {
+        const byte = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+        if (isNaN(byte)) return null;
+        u8[i] = byte;
+    }
+    return new DataView(buf).getFloat64(0);
+}
+
+function saveToURL() {
+    const p = new URLSearchParams();
+    p.set('cx',   f64ToHex(state.cx));
+    p.set('cy',   f64ToHex(state.cy));
+    p.set('zoom', f64ToHex(state.zoom));
+    history.replaceState(null, '', '?' + p.toString());
+}
+
+function loadFromURL() {
+    const p    = new URLSearchParams(location.search);
+    const cx   = hexToF64(p.get('cx'));
+    const cy   = hexToF64(p.get('cy'));
+    const zoom = hexToF64(p.get('zoom'));
+    if (cx !== null && cy !== null && zoom !== null && zoom > 0) {
+        state.cx   = cx;
+        state.cy   = cy;
+        state.zoom = zoom;
+    }
+}
+
 // ─── Render ──────────────────────────────────────────────────────────────────
 
 function render() {
@@ -228,17 +447,38 @@ function render() {
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, iterFBO);
         gl.viewport(0, 0, w, h);
-        gl.useProgram(iterProg);
 
-        gl.uniform2f(iterUniforms.u_res,   w, h);
-        gl.uniform1f(iterUniforms.u_cx,    state.cx);
-        gl.uniform1f(iterUniforms.u_cy,    state.cy);
-        gl.uniform1f(iterUniforms.u_pxsz,  1.0 / (state.zoom * dpr));
-        gl.uniform1f(iterUniforms.u_iters, state.maxIter);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-        gl.enableVertexAttribArray(quadAPos_iter);
-        gl.vertexAttribPointer(quadAPos_iter, 2, gl.FLOAT, false, 0, 0);
+        const useDD = state.zoom > DD_ZOOM_THRESHOLD;
+        if (useDD) {
+            gl.useProgram(iterProgDD);
+            const cx = splitDD(state.cx);
+            const cy = splitDD(state.cy);
+            gl.uniform1f(iterUniformsDD.u_one,        1);
+            gl.uniform2f(iterUniformsDD.u_res,        w, h);
+            gl.uniform2fv(iterUniformsDD.u_ctr_x,     cx);
+            gl.uniform2fv(iterUniformsDD.u_ctr_y,     cy);
+            gl.uniform1f(iterUniformsDD.u_pxsz,       1.0 / (state.zoom * dpr));
+            gl.uniform1i(iterUniformsDD.u_iters,      state.maxIter);
+            gl.uniform1i(iterUniformsDD.u_period,     state.periodEnabled ? state.period : 0);
+            const epsDD = getTolerance();
+            gl.uniform1f(iterUniformsDD.u_period_eps, epsDD * epsDD);
+            gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+            gl.enableVertexAttribArray(quadAPos_iterDD);
+            gl.vertexAttribPointer(quadAPos_iterDD, 2, gl.FLOAT, false, 0, 0);
+        } else {
+            gl.useProgram(iterProg);
+            gl.uniform2f(iterUniforms.u_res,        w, h);
+            gl.uniform1f(iterUniforms.u_cx,         state.cx);
+            gl.uniform1f(iterUniforms.u_cy,         state.cy);
+            gl.uniform1f(iterUniforms.u_pxsz,       1.0 / (state.zoom * dpr));
+            gl.uniform1f(iterUniforms.u_iters,      state.maxIter);
+            gl.uniform1i(iterUniforms.u_period,     state.periodEnabled ? state.period : 0);
+            const eps = getTolerance();
+            gl.uniform1f(iterUniforms.u_period_eps, eps * eps);
+            gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+            gl.enableVertexAttribArray(quadAPos_iter);
+            gl.vertexAttribPointer(quadAPos_iter, 2, gl.FLOAT, false, 0, 0);
+        }
         const t0 = performance.now();
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.finish();  // wait for GPU to complete
@@ -441,7 +681,36 @@ function initUI() {
 
     document.getElementById('iter-down').addEventListener('click', () => adjustIter(0.5));
     document.getElementById('iter-up').addEventListener('click',   () => adjustIter(2));
+    document.getElementById('period-toggle').addEventListener('click', () => {
+        state.periodEnabled = !state.periodEnabled;
+        updatePeriodDisplay();
+        iterDirty = true;
+        render();
+    });
+    document.getElementById('period-down').addEventListener('click', () => adjustPeriod(-5));
+    document.getElementById('period-up').addEventListener('click',   () => adjustPeriod(+5));
+    document.getElementById('tol-auto').addEventListener('click', () => {
+        if (state.periodTolAuto) {
+            // switching to manual — seed from current auto value so there's no jump
+            state.periodTol = getTolerance();
+        }
+        state.periodTolAuto = !state.periodTolAuto;
+        updateTolDisplay();
+        iterDirty = true;
+        render();
+    });
+    document.getElementById('tol-down').addEventListener('click', () => adjustPeriodTol(0.5));
+    document.getElementById('tol-up').addEventListener('click',   () => adjustPeriodTol(2));
     document.getElementById('reset').addEventListener('click', reset);
+    document.getElementById('copy-link').addEventListener('click', () => {
+        saveToURL();
+        navigator.clipboard.writeText(location.href).then(() => {
+            const btn = document.getElementById('copy-link');
+            const prev = btn.textContent;
+            btn.textContent = 'copied!';
+            setTimeout(() => { btn.textContent = prev; }, 1200);
+        });
+    });
 
     // Show current value as tooltip on all sliders
     document.querySelectorAll('#ui input[type=range]').forEach(s => {
@@ -464,6 +733,20 @@ function adjustIter(factor) {
     state.maxIter = Math.min(65536, Math.max(32, Math.round(state.maxIter * factor)));
     iterDirty = true;
     updateInfo();
+    render();
+}
+
+function adjustPeriod(delta) {
+    state.period = Math.max(1, state.period + delta);
+    updatePeriodDisplay();
+    iterDirty = true;
+    render();
+}
+
+function adjustPeriodTol(factor) {
+    state.periodTol = Math.min(1e-1, Math.max(1e-14, state.periodTol * factor));
+    updateTolDisplay();
+    iterDirty = true;
     render();
 }
 
@@ -492,6 +775,10 @@ function updatePalButtons() {
 function updateInfo() {
     document.getElementById('zoom-val').textContent = state.zoom.toExponential(2);
     document.getElementById('iter-val').textContent = state.maxIter;
+    const ddNote = document.getElementById('dd-note');
+    if (ddNote) ddNote.hidden = state.zoom <= DD_ZOOM_THRESHOLD;
+    updateTolDisplay();
+    saveToURL();
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
@@ -506,25 +793,31 @@ function init() {
         return;
     }
 
-    iterProg  = createProgram(VERT, ITER_FRAG);
-    colorProg = createProgram(VERT, COLOR_FRAG);
-    if (!iterProg || !colorProg) return;
+    iterProg   = createProgram(VERT, ITER_FRAG);
+    iterProgDD = createProgram(VERT, ITER_FRAG_DD);
+    colorProg  = createProgram(VERT, COLOR_FRAG);
+    if (!iterProg || !iterProgDD || !colorProg) return;
 
     iterUniforms = {};
-    for (const name of ['u_res', 'u_cx', 'u_cy', 'u_pxsz', 'u_iters']) {
+    for (const name of ['u_res', 'u_cx', 'u_cy', 'u_pxsz', 'u_iters', 'u_period', 'u_period_eps']) {
         iterUniforms[name] = gl.getUniformLocation(iterProg, name);
+    }
+    iterUniformsDD = {};
+    for (const name of ['u_one', 'u_res', 'u_ctr_x', 'u_ctr_y', 'u_pxsz', 'u_iters', 'u_period', 'u_period_eps']) {
+        iterUniformsDD[name] = gl.getUniformLocation(iterProgDD, name);
     }
     colorUniforms = {};
     for (const name of ['u_res', 'u_cscale', 'u_pa', 'u_pb', 'u_pc', 'u_pd', 'u_poff', 'u_bfreq', 'u_iter_tex']) {
         colorUniforms[name] = gl.getUniformLocation(colorProg, name);
     }
 
-    // Full-screen quad (shared between both passes)
+    // Full-screen quad (shared between all passes)
     quadBuf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1,  1, -1,  -1, 1,  1, 1]), gl.STATIC_DRAW);
-    quadAPos_iter  = gl.getAttribLocation(iterProg,  'a_pos');
-    quadAPos_color = gl.getAttribLocation(colorProg, 'a_pos');
+    quadAPos_iter   = gl.getAttribLocation(iterProg,   'a_pos');
+    quadAPos_iterDD = gl.getAttribLocation(iterProgDD, 'a_pos');
+    quadAPos_color  = gl.getAttribLocation(colorProg,  'a_pos');
 
     // Iteration texture (RGBA8, sized on first render)
     iterTex = gl.createTexture();
@@ -540,6 +833,7 @@ function init() {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, iterTex, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
+    loadFromURL();
     initEvents(canvas);
     initUI();
     initOrbit();
@@ -713,24 +1007,49 @@ function drawOrbit() {
 
     if (!orbit.enabled) return;
 
-    // Compute orbit in float64
+    // Compute orbit in float64, with period detection inline so the loop
+    // stops as soon as the detector fires (or the orbit escapes).
     const maxIter = state.maxIter;
     const cx = orbit.cx, cy = orbit.cy;
     let zx = 0, zy = 0;
     orbit.points = [];
     let escaped = -1;
+    let periodDetected = null;
+
+    const tol    = state.periodEnabled ? getTolerance() : 0;
+    const eps2   = tol * tol;
+    let zx_ref = 0, zy_ref = 0, period_ctr = 0;
 
     for (let i = 0; i < maxIter; i++) {
         const nx = zx * zx - zy * zy + cx;
         const ny = 2 * zx * zy + cy;
         zx = nx; zy = ny;
         orbit.points.push([zx, zy]);
+
         if (zx * zx + zy * zy > 256) { escaped = i + 1; break; }
+
+        if (state.periodEnabled) {
+            const dx = zx - zx_ref, dy = zy - zy_ref;
+            if (dx * dx + dy * dy < eps2) {
+                periodDetected = { wx: zx_ref, wy: zy_ref, tol, iter: i + 1 };
+                break;
+            }
+            period_ctr++;
+            if (period_ctr >= state.period) {
+                zx_ref = zx; zy_ref = zy; period_ctr = 0;
+            }
+        }
     }
     const points = orbit.points;
 
+    // Colour scheme: green for bounded / period-caught, red for escaped
+    const bounded = escaped <= 0;
+    const lineCol = bounded ? 'rgba(60, 220, 120, 0.5)' : 'rgba(255, 80, 80, 0.5)';
+    const dotCol  = bounded ? 'rgba(60, 220, 120, 0.8)' : 'rgba(255, 80, 80, 0.7)';
+    const rimCol  = bounded ? '#3cdc78'                  : '#ff3333';
+
     // Draw lines
-    ctx.strokeStyle = 'rgba(255, 80, 80, 0.5)';
+    ctx.strokeStyle = lineCol;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let i = 0; i < points.length; i++) {
@@ -743,27 +1062,50 @@ function drawOrbit() {
     // Draw dots
     for (let i = 0; i < points.length; i++) {
         const p = worldToScreen(points[i][0], points[i][1]);
-        ctx.fillStyle = i === 0 ? '#ff3333' : 'rgba(255, 80, 80, 0.7)';
+        ctx.fillStyle = i === 0 ? rimCol : dotCol;
         ctx.beginPath();
         ctx.arc(p[0], p[1], i === 0 ? 6 : 2, 0, Math.PI * 2);
         ctx.fill();
     }
 
-    // Draw starting point (c) as larger draggable circle
+    // Draw starting point (c) as larger draggable ring
     const cp = worldToScreen(cx, cy);
-    ctx.strokeStyle = '#ff3333';
+    ctx.strokeStyle = rimCol;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(cp[0], cp[1], 8, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Show escape info
+    // Draw period-detector reference point: green circle, radius = tolerance in world units
+    if (periodDetected) {
+        const rp = worldToScreen(periodDetected.wx, periodDetected.wy);
+        const radiusPx = Math.max(5, periodDetected.tol * state.zoom * dpr);
+
+        ctx.strokeStyle = 'rgba(0, 210, 90, 0.9)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(rp[0], rp[1], radiusPx, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = '#00d25a';
+        ctx.beginPath();
+        ctx.arc(rp[0], rp[1], 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = `${11 * dpr}px monospace`;
+        ctx.fillStyle = '#00d25a';
+        ctx.fillText(`period-${state.period} @ n=${periodDetected.iter}`, rp[0] + radiusPx + 5, rp[1] - 4);
+    }
+
+    // Status label
     const infoEl = document.getElementById('orbit-info');
-    if (escaped > 0) {
+    if (periodDetected) {
+        infoEl.textContent = `period-${state.period} caught @ n=${periodDetected.iter}`;
+        infoEl.style.color = '#0f9';
+    } else if (escaped > 0) {
         infoEl.textContent = `escaped @ ${escaped}`;
         infoEl.style.color = '#f88';
 
-        // Draw escape label at final point
         const last = points[points.length - 1];
         const lp = worldToScreen(last[0], last[1]);
         ctx.font = `${12 * dpr}px monospace`;
