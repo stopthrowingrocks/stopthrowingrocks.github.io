@@ -1,0 +1,4 @@
+- Better UI
+  - Vials move to two rows by default
+  - Buttons are given names and have their own space on the screen
+- Maybe don't try to make your own styling/spatial organization system. Can you use HTML for this?
