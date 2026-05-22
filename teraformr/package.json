@@ -1,0 +1,18 @@
+{
+  "name": "teraformr",
+  "scripts": {
+    "build": "esbuild src/* --outdir=build"
+  },
+  "author": "Marcus Luebke",
+  "license": "GPLv3",
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.2.2",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "esbuild": "0.25.8",
+    "eslint": "^9.32.0",
+    "http-server": "^0.12.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0"
+  }
+}
