@@ -1,5 +1,5 @@
 *.secret.*
 *.hidden.*
-/node_modules/
-public
-.claude
+node_modules
+./public
+.claude/*.local.*

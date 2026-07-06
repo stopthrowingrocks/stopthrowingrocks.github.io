@@ -1,0 +1,228 @@
+/* ── App container ──────────────────────────────────────────────────────── */
+#parking-app {
+  max-width: 640px;
+  margin: 1.5rem 0;
+}
+
+#loading {
+  color: var(--text-pale-color);
+  font-style: italic;
+  margin: 1.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 2px solid var(--primary-pale-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Controls ──────────────────────────────────────────────────────────── */
+.control-group {
+  margin: 1.1rem 0;
+}
+
+.ctrl-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-pale-color);
+  margin-bottom: 0.4rem;
+}
+
+.btn-group {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.btn-group button {
+  padding: 0.3rem 0.75rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: inherit;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.btn-group button:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.btn-group button.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+}
+
+#start-hour {
+  display: block;
+  width: 100%;
+  margin-top: 0.4rem;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+
+/* ── Chart ─────────────────────────────────────────────────────────────── */
+#chart-container {
+  margin: 1.8rem 0 0.3rem;
+}
+
+#chart {
+  display: flex;
+  align-items: flex-end;
+  height: 140px;
+  gap: 2px;
+  border-bottom: 1.5px solid var(--text-decoration-color);
+}
+
+.bar-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+}
+
+.bar-fill {
+  width: 100%;
+  background: var(--text-decoration-color);
+  min-height: 2px;
+  border-radius: 1px 1px 0 0;
+  transition: height 0.25s ease, background 0.15s;
+}
+
+.bar-fill.bar-selected {
+  background: var(--primary-color);
+  opacity: 0.9;
+}
+
+#chart-x-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 0.68rem;
+  color: var(--text-pale-color);
+  padding: 0 0;
+}
+
+/* ── Result box ──────────────────────────────────────────────────────────── */
+#result {
+  margin: 1.5rem 0 1rem;
+  padding: 1rem 1.2rem;
+  border: 1.5px solid var(--text-decoration-color);
+  border-radius: 4px;
+}
+
+#result.risk-low    { border-color: var(--callout-tip-color); }
+#result.risk-medium { border-color: var(--callout-warning-color); }
+#result.risk-high   { border-color: var(--callout-caution-color); }
+
+.risk-level {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.45rem;
+  letter-spacing: 0.01em;
+}
+
+.risk-level.low    { color: var(--callout-tip-color); }
+.risk-level.medium { color: var(--callout-warning-color); }
+.risk-level.high   { color: var(--callout-caution-color); }
+
+.risk-stats {
+  font-size: 0.85rem;
+  color: var(--text-pale-color);
+  line-height: 1.7;
+}
+
+.risk-stats strong {
+  color: var(--text-color);
+}
+
+.risk-bar-wrap {
+  margin: 0.6rem 0 0.2rem;
+  background: var(--primary-decoration-color);
+  border-radius: 3px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.risk-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ── Timeline ────────────────────────────────────────────────────────────── */
+#timeline-container {
+  margin: 1.5rem 0;
+}
+
+.timeline-heading {
+  font-size: 0.8rem;
+  color: var(--text-pale-color);
+  margin: 0 0 0.4rem;
+}
+
+#timeline-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: opacity 0.15s;
+  overflow: visible;
+}
+
+/* ── Map ─────────────────────────────────────────────────────────────────── */
+#map-section {
+  margin: 1.5rem 0;
+}
+
+#map {
+  height: 480px;
+  width: 100%;
+  border-radius: 4px;
+  transition: opacity 0.2s;
+  /* Leaflet sets z-index internally; keep it below fixed site elements */
+  z-index: 0;
+}
+
+/* Prevent Leaflet's tile attribution from inheriting site link styles */
+.leaflet-container a {
+  border-bottom: none !important;
+}
+
+
+/* ── Map time slider ─────────────────────────────────────────────────────── */
+#hm-time-wrap {
+  margin: 0.9rem 0 0.5rem;
+}
+
+#hm-month-slider {
+  display: block;
+  width: 100%;
+  margin-top: 0.4rem;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+
+/* ── Data note ───────────────────────────────────────────────────────────── */
+.data-note {
+  font-size: 0.75rem;
+  color: var(--text-pale-color);
+  margin-top: 1rem;
+  line-height: 1.6;
+}
