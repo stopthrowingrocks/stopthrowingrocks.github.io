@@ -80,7 +80,7 @@ export function setupInteraction(): void {
 
   // ── Touch ─────────────────────────────────────────────────────────────────
 
-  document.addEventListener("touchstart", e => {
+  wrap.addEventListener("touchstart", e => {
     if (!e.touches[0]) return;
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-idx]");
     if (!el) return;
@@ -99,7 +99,7 @@ export function setupInteraction(): void {
     if (curState()[i] === 0) paintCell(i, 2);
   }, { passive: false });
 
-  document.addEventListener("touchmove", e => {
+  wrap.addEventListener("touchmove", e => {
     if (!state.isDragging || !state.puzzle) return;
     e.preventDefault();
     const touch = e.touches[0];
@@ -118,5 +118,5 @@ export function setupInteraction(): void {
     }
   }, { passive: false });
 
-  document.addEventListener("touchend", finishInteraction);
+  wrap.addEventListener("touchend", finishInteraction);
 }
