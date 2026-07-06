@@ -1,5 +1,7 @@
 *.secret.*
 *.hidden.*
 node_modules
+build
+build.js
 /public/
 .claude/*.local.*

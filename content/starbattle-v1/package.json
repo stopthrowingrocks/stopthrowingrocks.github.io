@@ -1,8 +1,8 @@
 {
   "name": "starbattle-v1",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --outfile=starbattle.js",
-    "watch": "esbuild src/main.ts --bundle --outfile=starbattle.js --watch",
+    "build": "esbuild src/main.ts --bundle --outfile=build.js",
+    "watch": "esbuild src/main.ts --bundle --outfile=build.js --watch",
     "scrape": "node scripts/scrape.js"
   },
   "author": "Marcus Luebke",
