@@ -1,11 +1,5 @@
 *.secret.*
 *.hidden.*
-<<<<<<< Updated upstream
 node_modules
 ./public
 .claude/*.local.*
-=======
-**/node_modules/**
-public
-.claude
->>>>>>> Stashed changes
