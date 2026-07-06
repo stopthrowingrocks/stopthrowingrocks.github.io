@@ -29,4 +29,4 @@ tab_title = "Star Battle"
   </div>
 </div>
 
-<script src="starbattle.js"></script>
+<script src="build.js"></script>
