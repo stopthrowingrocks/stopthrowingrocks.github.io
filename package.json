@@ -1,8 +1,18 @@
 {
   "name": "stopthrowingrocks.github.io",
-  "workspaces": ["content/wma1", "content/color-sort", "content/teraformr"],
+  "workspaces": [
+    "content/wma1",
+    "content/color-sort",
+    "content/teraformr",
+    "content/starbattle-v1"
+  ],
   "scripts": {
     "serve": "zola serve",
-    "watch": "esbuild content/teraformr/src/* --outdir=content/teraformr/build --watch"
+    "build": "npm run build --workspaces --if-present",
+    "watch": "node scripts/watch.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "vite": "^8.1.2"
   }
 }

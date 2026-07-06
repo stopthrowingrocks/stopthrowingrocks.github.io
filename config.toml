@@ -11,6 +11,7 @@ ignored_content = [
   "*.zola-ignore.md",
   "*.draft.md",
   "**/README.md",
+  "**/node_modules/**"
 ]
 
 [markdown]

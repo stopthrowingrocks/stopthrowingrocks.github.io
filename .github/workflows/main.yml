@@ -21,16 +21,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: npm install
-        run: npm install
-      - name: Install deps once at root (workspaces)
+      - name: Install deps
         run: npm ci
-      - name: Build TS for wma1 with esbuild
-        run: npm run build --workspace=content/wma1
-      - name: Build TS for color-sort with esbuild
-        run: npm run build --workspace=content/color-sort
-      - name: Build TS for Teraformr
-        run: npm run build --workspace=content/teraformr
+      - name: Build all workspaces
+        run: npm run build
 
 
       - name: build_and_deploy

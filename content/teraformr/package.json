@@ -1,7 +1,8 @@
 {
   "name": "teraformr",
   "scripts": {
-    "build": "esbuild src/* --outdir=build"
+    "build": "esbuild src/* --outdir=build",
+    "watch": "esbuild src/* --outdir=build --watch"
   },
   "author": "Marcus Luebke",
   "license": "GPLv3",
