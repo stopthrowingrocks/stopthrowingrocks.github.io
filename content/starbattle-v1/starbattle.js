@@ -892,12 +892,16 @@
       if (curState()[i] === 0) paintCell(i, 2);
     }, { passive: false });
     document.addEventListener("touchmove", (e) => {
-      if (!state.isDragging) return;
+      if (!state.isDragging || !state.puzzle) return;
       e.preventDefault();
-      const raw = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
-      const el = raw?.closest("[data-idx]");
-      if (!el) return;
-      const i = Number(el.dataset.idx);
+      const touch = e.touches[0];
+      const rect = wrap.getBoundingClientRect();
+      const sz = getCellSize();
+      const N = state.puzzle.size;
+      const col = Math.floor((touch.clientX - rect.left) / sz);
+      const row = Math.floor((touch.clientY - rect.top) / sz);
+      if (col < 0 || col >= N || row < 0 || row >= N) return;
+      const i = row * N + col;
       const spl = curBoard().activeSplits.find((s) => s.idx === i);
       if (i !== state.mousedownIdx && curState()[i] === 0 && !spl) {
         state.dragMoved = true;
