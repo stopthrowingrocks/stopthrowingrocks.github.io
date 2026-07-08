@@ -1,4 +1,4 @@
-import type { Puzzle, SavedState } from './types';
+import { CellState, type Puzzle, type SavedState } from './types';
 import { state } from './state';
 
 export type LevelStatus = 'solved' | 'started' | 'empty';
@@ -35,8 +35,8 @@ export function levelStatus(p: Puzzle): LevelStatus {
   try {
     const s: SavedState = JSON.parse(raw);
     const regionCount = new Set(p.regions).size;
-    const isSolved = (cells: number[]) => cells.filter(v => v === 1).length === regionCount * p.stars;
-    const hasProgress = (cells: number[]) => cells.some(v => v > 0);
+    const isSolved = (cells: CellState[]) => cells.filter(v => v === CellState.STAR).length === regionCount * p.stars;
+    const hasProgress = (cells: CellState[]) => cells.some(v => v !== CellState.EMPTY);
 
     // Any branch being solved counts as solved
     if (Object.values(s.boardsById).some(b => isSolved(b.state))) return 'solved';

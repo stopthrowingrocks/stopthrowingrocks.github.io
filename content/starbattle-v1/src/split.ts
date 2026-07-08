@@ -1,7 +1,7 @@
-import type { CellState } from './types';
-import { state, curBoard } from './state';
+import { CellState } from './types';
+import { state, getCurBoard } from './state';
 import { saveUndo } from './undo';
-import { refresh, buildTable } from './render';
+import { refresh } from './render';
 import { saveState } from './persistence';
 
 export function exitSplitMode(): void {
@@ -12,14 +12,14 @@ export function exitSplitMode(): void {
 export function sbToggleSplit(): void {
   state.splitMode = !state.splitMode;
   document.getElementById("sb-split-btn")!.classList.toggle("active", state.splitMode);
-  buildTable(); // rebuild to update cell cursors
+  refresh(); // rebuild to update cell cursors and outlines
 }
 
 export function splitCell(idx: number): void {
-  if (curBoard().activeSplits.some(s => s.idx === idx)) return;
+  if (getCurBoard().activeSplits.some(s => s.idx === idx)) return;
 
   saveUndo();
-  const cur     = curBoard();
+  const cur     = getCurBoard();
   const groupId = state.groupIdCtr++;
   const starId  = state.boardIdCtr++;
   const elimId  = state.boardIdCtr++;
@@ -30,13 +30,13 @@ export function splitCell(idx: number): void {
 
   cur.activeSplits.push({ ...entry, role: 'orig' });
 
-  const stateStar = cur.state.slice() as CellState[]; stateStar[idx] = 1;
+  const stateStar = cur.state.slice() as CellState[]; stateStar[idx] = CellState.STAR;
   state.boardsById[starId] = {
     id: starId, state: stateStar, impossible: false,
     activeSplits: [...baseSplits, { ...entry, role: 'star' }],
   };
 
-  const stateElim = cur.state.slice() as CellState[]; stateElim[idx] = 2;
+  const stateElim = cur.state.slice() as CellState[]; stateElim[idx] = CellState.ELIM;
   state.boardsById[elimId] = {
     id: elimId, state: stateElim, impossible: false,
     activeSplits: [...baseSplits, { ...entry, role: 'elim' }],
@@ -50,7 +50,7 @@ export function splitCell(idx: number): void {
 // Cycle: orig → elim → star → orig (all live), or star ↔ elim (any impossible).
 // If currentBoardId is not directly in the triplet (nested sub-branch), fall back to origId.
 export function clickSplitCell(groupId: number): void {
-  const split = curBoard().activeSplits.find(s => s.groupId === groupId);
+  const split = getCurBoard().activeSplits.find(s => s.groupId === groupId);
   if (!split) return;
 
   const anyImpossible = [split.origId, split.starId, split.elimId]
@@ -71,10 +71,11 @@ export function clickSplitCell(groupId: number): void {
   refresh();
 }
 
-// Mirror a cell value change from boardId into all its split descendants.
-// Only propagates through splits where this board is the actual originator
-// (split.origId === boardId) — inherited 'orig' entries must not leak to
-// sibling branches created from a different parent.
+/** Mirror a cell value change from boardId into all its split descendants.
+ * Only propagates through splits where this board is the actual originator
+ * (split.origId === boardId) — inherited 'orig' entries must not leak to
+ * sibling branches created from a different parent.
+ */
 export function propagateChange(
   boardId: number,
   cellIdx: number,

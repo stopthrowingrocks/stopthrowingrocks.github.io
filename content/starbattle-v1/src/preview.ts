@@ -1,5 +1,5 @@
 import { REGION_COLORS } from './constants';
-import type { CellState, Puzzle } from './types';
+import { CellState, type Puzzle } from './types';
 
 export function renderPreview(p: Puzzle, stateArr: CellState[] | null, size = 150): HTMLCanvasElement {
   const { size: N, regions } = p;
@@ -26,12 +26,12 @@ export function renderPreview(p: Puzzle, stateArr: CellState[] | null, size = 15
     drawEdge(r === N-1   || regions[i] !== regions[(r+1)*N+col], x,    y+cs, x+cs, y+cs);
     drawEdge(col === N-1 || regions[i] !== regions[r*N+(col+1)], x+cs, y,    x+cs, y+cs);
 
-    if (stateArr?.[i] === 1) {
+    if (stateArr?.[i] === CellState.STAR) {
       ctx.fillStyle = "#111";
       ctx.font = `bold ${Math.round(cs * 0.55)}px sans-serif`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("★", x + cs / 2, y + cs / 2);
-    } else if (stateArr?.[i] === 2) {
+    } else if (stateArr?.[i] === CellState.ELIM) {
       ctx.fillStyle = "rgba(0,0,0,0.4)";
       ctx.beginPath();
       ctx.arc(x + cs / 2, y + cs / 2, cs * 0.13, 0, Math.PI * 2);

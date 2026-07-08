@@ -1,37 +1,76 @@
-import type { CellState } from './types';
-import { state, curBoard, curState } from './state';
+import { CellState } from './types';
+import { state, getCurBoard, getCurState } from './state';
 import { saveUndo } from './undo';
-import { buildTable, updateStatus, getCellSize } from './render';
+import { updateCellContents, renderStatus } from './render';
 import { saveState } from './persistence';
 import { splitCell, clickSplitCell, propagateChange } from './split';
 
-function paintCell(idx: number, value: CellState): void {
-  curState()[idx] = value;
+function markCellAndRender(idx: number, value: CellState): void {
+  getCurState()[idx] = value;
   propagateChange(state.currentBoardId, idx, value);
-  buildTable(); updateStatus();
+  updateCellContents(); renderStatus();
 }
 
-export function finishInteraction(): void {
-  const { isDragging, dragMoved, mousedownIdx } = state;
+function getSplitAt(idx: number) {
+  return getCurBoard().activeSplits.find(s => s.idx === idx);
+}
+
+function beginPress(idx: number, isTouch = false): void {
+  if (state.splitMode) { splitCell(idx); return; }
+  const spl = getSplitAt(idx);
+  if (spl) { clickSplitCell(spl.groupId); return; }
+
+  saveUndo();
+  state.interaction.isDragging         = true;
+  state.interaction.dragMoved          = false;
+  state.interaction.mousedownIdx       = idx;
+  state.interaction.mousedownPrevState = getCurState()[idx] as CellState;
+  state.interaction.isTouch            = isTouch;
+  // Mouse paints immediately; touch defers to avoid destroying the touchstart target element,
+  // which would cancel the iOS Safari touch sequence before touchmove fires.
+  if (!isTouch && getCurState()[idx] === CellState.EMPTY) markCellAndRender(idx, CellState.ELIM);
+}
+
+function continuePress(idx: number, wrap: HTMLElement): void {
+  if (idx !== state.interaction.mousedownIdx && getCurState()[idx] === CellState.EMPTY && !getSplitAt(idx)) {
+    // On first drag move, also paint the origin cell if it's still empty (touch deferred it).
+    if (!state.interaction.dragMoved) {
+      const orig = state.interaction.mousedownIdx;
+      if (getCurState()[orig] === CellState.EMPTY && !getSplitAt(orig)) {
+        getCurState()[orig] = CellState.ELIM;
+        propagateChange(state.currentBoardId, orig, CellState.ELIM);
+      }
+    }
+    state.interaction.dragMoved = true;
+    wrap.classList.add("sb-dragging");
+    markCellAndRender(idx, CellState.ELIM);
+  }
+}
+
+function endPress(): void {
+  const { isDragging, dragMoved, mousedownIdx, mousedownPrevState, isTouch } = state.interaction;
   const board = state.boardsById[state.currentBoardId];
 
   if (board && isDragging && !dragMoved && mousedownIdx !== -1) {
-    const spl = board.activeSplits.find(s => s.idx === mousedownIdx);
-    if (!spl) {
-      // Complete the click cycle: elim→star or star→empty (empty→elim was handled in mousedown)
-      if (state.mousedownPrev === 2) paintCell(mousedownIdx, 1);
-      else if (state.mousedownPrev === 1) paintCell(mousedownIdx, 0);
+    if (!getSplitAt(mousedownIdx)) {
+      // Complete the click cycle. Touch defers the empty→elim step to here;
+      // mouse already painted elim on mousedown so it starts the cycle from elim.
+      if (mousedownPrevState === CellState.EMPTY && isTouch) markCellAndRender(mousedownIdx, CellState.ELIM);
+      else if (mousedownPrevState === CellState.ELIM) markCellAndRender(mousedownIdx, CellState.STAR);
+      else if (mousedownPrevState === CellState.STAR) markCellAndRender(mousedownIdx, CellState.EMPTY);
     }
+  } else if (dragMoved) {
+    updateCellContents(); renderStatus();
   }
 
-  state.isDragging = false;
-  state.dragMoved  = false;
-  state.mousedownIdx = -1;
+  state.interaction.isDragging   = false;
+  state.interaction.dragMoved    = false;
+  state.interaction.mousedownIdx = -1;
   document.getElementById("sb-table-wrap")?.classList.remove("sb-dragging");
   saveState();
 }
 
-export function setupInteraction(): void {
+export function addInteractionEventListeners(): void {
   const wrap = document.getElementById("sb-table-wrap")!;
 
   // ── Mouse ─────────────────────────────────────────────────────────────────
@@ -41,32 +80,13 @@ export function setupInteraction(): void {
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-idx]");
     if (!el) return;
     e.preventDefault();
-    const idx = Number(el.dataset.idx);
-
-    if (state.splitMode) { splitCell(idx); return; }
-
-    const spl = curBoard().activeSplits.find(s => s.idx === idx);
-    if (spl) { clickSplitCell(spl.groupId); return; }
-
-    saveUndo();
-    state.isDragging   = true;
-    state.dragMoved    = false;
-    state.mousedownIdx = idx;
-    state.mousedownPrev = curState()[idx] as CellState;
-
-    if (curState()[idx] === 0) paintCell(idx, 2);
+    beginPress(Number(el.dataset.idx));
   });
 
   wrap.addEventListener("mouseover", e => {
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-idx]");
-    if (!el || !state.isDragging) return;
-    const idx = Number(el.dataset.idx);
-    const spl = curBoard().activeSplits.find(s => s.idx === idx);
-    if (idx !== state.mousedownIdx && curState()[idx] === 0 && !spl) {
-      state.dragMoved = true;
-      wrap.classList.add("sb-dragging");
-      paintCell(idx, 2);
-    }
+    if (!el || !state.interaction.isDragging) return;
+    continuePress(Number(el.dataset.idx), wrap);
   });
 
   wrap.addEventListener("contextmenu", e => {
@@ -76,7 +96,10 @@ export function setupInteraction(): void {
     splitCell(Number(el.dataset.idx));
   });
 
-  window.addEventListener("mouseup", finishInteraction);
+  window.addEventListener("mouseup", e => {
+    void e;
+    endPress();
+  });
 
   // ── Touch ─────────────────────────────────────────────────────────────────
 
@@ -85,38 +108,21 @@ export function setupInteraction(): void {
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-idx]");
     if (!el) return;
     e.preventDefault();
-    const i = Number(el.dataset.idx);
-
-    if (state.splitMode) { splitCell(i); return; }
-    const spl = curBoard().activeSplits.find(s => s.idx === i);
-    if (spl) { clickSplitCell(spl.groupId); return; }
-
-    saveUndo();
-    state.isDragging    = true;
-    state.dragMoved     = false;
-    state.mousedownIdx  = i;
-    state.mousedownPrev = curState()[i] as CellState;
-    if (curState()[i] === 0) paintCell(i, 2);
+    beginPress(Number(el.dataset.idx), true);
   }, { passive: false });
 
   wrap.addEventListener("touchmove", e => {
-    if (!state.isDragging || !state.puzzle) return;
+    if (!state.interaction.isDragging || !state.puzzle) return;
     e.preventDefault();
     const touch = e.touches[0];
-    const rect  = wrap.getBoundingClientRect();
-    const sz    = getCellSize();
-    const N     = state.puzzle.size;
-    const col   = Math.floor((touch.clientX - rect.left) / sz);
-    const row   = Math.floor((touch.clientY - rect.top)  / sz);
-    if (col < 0 || col >= N || row < 0 || row >= N) return;
-    const i   = row * N + col;
-    const spl = curBoard().activeSplits.find(s => s.idx === i);
-    if (i !== state.mousedownIdx && curState()[i] === 0 && !spl) {
-      state.dragMoved = true;
-      wrap.classList.add("sb-dragging");
-      paintCell(i, 2);
-    }
-  }, { passive: false });
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    const el = target?.closest<HTMLElement>("[data-idx]");
+    if (!el) return;
+    continuePress(Number(el.dataset.idx), wrap);
+   }, { passive: false });
 
-  wrap.addEventListener("touchend", finishInteraction);
+  wrap.addEventListener("touchend", e => {
+    void e;
+    endPress();
+  });
 }

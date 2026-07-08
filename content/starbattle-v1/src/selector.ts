@@ -1,4 +1,4 @@
-import type { Puzzle } from './types';
+import { CellState, type Puzzle } from './types';
 import { state } from './state';
 import { groupPuzzles } from './parse';
 import { loadSaved, levelStatus, clearSaved } from './persistence';
@@ -141,7 +141,7 @@ export function sbRestart(skipConfirm = false): void {
   state.boardIdCtr = 0; state.groupIdCtr = 0;
   const id = state.boardIdCtr++;
   state.boardsById = {
-    [id]: { id, state: new Array<0>(state.puzzle!.size ** 2).fill(0), activeSplits: [], impossible: false },
+    [id]: { id, state: new Array<CellState>(state.puzzle!.size ** 2).fill(CellState.EMPTY), activeSplits: [], impossible: false },
   };
   state.currentBoardId = id;
   state.undoStack = []; state.redoStack = [];

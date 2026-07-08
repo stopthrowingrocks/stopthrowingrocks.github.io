@@ -1,8 +1,8 @@
 import { REGION_COLORS, THIN, THICK } from './constants';
-import { state, curBoard, curState } from './state';
+import { state, getCurBoard, getCurState } from './state';
 import { computeAutoElim, computeConflicts, computeProblematic, checkWin } from './constraints';
 import { saveState } from './persistence';
-import type { SplitEntry } from './types';
+import { CellState, type SplitEntry } from './types';
 
 export function getCellSize(): number {
   const pad = window.innerWidth < 450 ? 12 : 40;
@@ -17,7 +17,7 @@ function getSplitColor(split: SplitEntry): string {
   if (!anyImpossible) return "#4fc3f7";
 
   // The direct parent is the last split entry where this board is the star or elim
-  const splits = curBoard().activeSplits;
+  const splits = getCurBoard().activeSplits;
   let directParentGroupId: number | null = null;
   for (let i = splits.length - 1; i >= 0; i--) {
     if (splits[i].role === 'star' || splits[i].role === 'elim') {
@@ -26,18 +26,15 @@ function getSplitColor(split: SplitEntry): string {
     }
   }
 
-  if (split.groupId === directParentGroupId && curBoard().impossible) return "#e94560";
+  if (split.groupId === directParentGroupId && getCurBoard().impossible) return "#e94560";
   return "#888";
 }
 
-export function buildTable(): void {
-  const cells     = curState();
-  const cur       = curBoard();
+/** Full teardown-and-rebuild of the board DOM; also syncs #sb-title-row width to the board. */
+export function renderTableStructure(): void {
+  const cur       = getCurBoard();
   const { size: N, regions: reg } = state.puzzle!;
   const sz        = getCellSize();
-  const conflicts = computeConflicts();
-  const autoElim  = computeAutoElim();
-  const { badRows, badCols, badRegs } = computeProblematic(autoElim);
   const wrap = document.getElementById("sb-table-wrap")!;
 
   const splitCellMap: Record<number, SplitEntry> = {};
@@ -75,17 +72,6 @@ export function buildTable(): void {
         spl ? `outline:2px solid ${getSplitColor(spl)};outline-offset:-2px` : "",
       ].join(";");
 
-      if (cells[idx] === 1) {
-        td.textContent = "★";
-        td.style.color = conflicts.has(idx) ? "#e94560" : "#111";
-      } else if (cells[idx] === 2 || autoElim.has(idx)) {
-        const dot = document.createElement("span");
-        const dotSz = Math.round(sz * 0.18);
-        dot.style.cssText = `display:block;width:${dotSz}px;height:${dotSz}px;border-radius:50%;` +
-          `background:rgba(0,0,0,${cells[idx] !== 2 ? 0.18 : 0.35});margin:auto;`;
-        td.appendChild(dot);
-      }
-
       tr.appendChild(td);
     }
     tbl.appendChild(tr);
@@ -93,11 +79,48 @@ export function buildTable(): void {
 
   wrap.innerHTML = "";
   wrap.appendChild(tbl);
-  addProblemOverlays(wrap, tbl, badRows, badCols, badRegs, N, reg);
 
-  const boardPx = `${N * sz}px`;
   const titleRow = document.getElementById("sb-title-row");
-  if (titleRow) titleRow.style.width = boardPx;
+  if (titleRow) titleRow.style.width = `${N * sz}px`;
+}
+
+/** Updates cell content and constraint overlays in-place without rebuilding the table DOM. */
+export function updateCellContents(): void {
+  const cells     = getCurState();
+  const { size: N, regions: reg } = state.puzzle!;
+  const sz        = getCellSize();
+  const conflicts = computeConflicts();
+  const autoElim  = computeAutoElim();
+  const { badRows, badCols, badRegs } = computeProblematic(autoElim);
+  const wrap = document.getElementById("sb-table-wrap")!;
+  const tbl  = wrap.querySelector("table");
+  if (!tbl) return;
+
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const idx = r * N + c;
+      const td  = tbl.rows[r]?.cells[c];
+      if (!td) continue;
+
+      if (cells[idx] === CellState.STAR) {
+        td.textContent = "★";
+        td.style.color = conflicts.has(idx) ? "#e94560" : "#111";
+      } else if (cells[idx] === CellState.ELIM || autoElim.has(idx)) {
+        const dot = document.createElement("span");
+        const dotSz = Math.round(sz * 0.18);
+        dot.style.cssText = `display:block;width:${dotSz}px;height:${dotSz}px;border-radius:50%;` +
+          `background:rgba(0,0,0,${cells[idx] !== CellState.ELIM ? 0.18 : 0.35});margin:auto;`;
+        td.innerHTML = "";
+        td.appendChild(dot);
+        td.style.color = "";
+      } else {
+        td.innerHTML = "";
+        td.style.color = "";
+      }
+    }
+  }
+
+  addProblemOverlays(wrap, tbl, badRows, badCols, badRegs, N, reg);
 }
 
 function addProblemOverlays(
@@ -160,14 +183,14 @@ function addProblemOverlays(
     const cc = cell.getBoundingClientRect();
     const t = cc.top  - wr.top,  l = cc.left   - wr.left;
     const b = cc.bottom - wr.top, ri = cc.right - wr.left;
-    if (r === 0     || reg[i] !== reg[(r - 1) * N + c]) hBar(t,     l,  ri - l);
-    if (r === N - 1 || reg[i] !== reg[(r + 1) * N + c]) hBar(b - B, l,  ri - l);
+    if (r === 0     || reg[i] !== reg[(r - 1) * N + c]) hBar(t,      l, ri - l);
+    if (r === N - 1 || reg[i] !== reg[(r + 1) * N + c]) hBar(b - B,  l, ri - l);
     if (c === 0     || reg[i] !== reg[r * N + (c - 1)]) vBar(l,      t,  b - t);
     if (c === N - 1 || reg[i] !== reg[r * N + (c + 1)]) vBar(ri - B, t,  b - t);
   }
 }
 
-export function updateStatus(): void {
+export function renderStatus(): void {
   const el = document.getElementById("sb-status")!;
   if (checkWin()) {
     el.textContent = "Puzzle solved! ★";
@@ -176,14 +199,14 @@ export function updateStatus(): void {
   } else {
     const { stars: K, regions } = state.puzzle!;
     const numRegions = new Set(regions).size;
-    const starCount  = curState().filter(v => v === 1).length;
+    const starCount  = getCurState().filter(v => v === CellState.STAR).length;
     el.textContent = `Stars placed: ${starCount} / ${numRegions * K}`;
     el.className   = "";
   }
 }
 
 export function updateBoardNav(): void {
-  const cur    = curBoard();
+  const cur    = getCurBoard();
   const splits = cur.activeSplits;
   const label  = document.getElementById("sb-branch-label")!;
   const { size: N } = state.puzzle!;
@@ -215,5 +238,5 @@ export function updateBoardNav(): void {
 }
 
 export function refresh(): void {
-  buildTable(); updateStatus(); updateBoardNav();
+  renderTableStructure(); updateCellContents(); renderStatus(); updateBoardNav();
 }

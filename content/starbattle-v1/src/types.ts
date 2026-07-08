@@ -1,4 +1,8 @@
-export type CellState = 0 | 1 | 2; // 0=empty 1=star 2=elim
+export enum CellState {
+  EMPTY,
+  STAR,
+  ELIM,
+};
 
 export type SplitRole = 'orig' | 'star' | 'elim';
 

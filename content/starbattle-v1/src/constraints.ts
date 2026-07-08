@@ -1,7 +1,8 @@
-import { state, curState } from './state';
+import { CellState } from './types';
+import { state, getCurState } from './state';
 
 export function computeAutoElim(): Set<number> {
-  const cells = curState();
+  const cells = getCurState();
   const { size: N, stars: K, regions } = state.puzzle!;
   const auto   = new Set<number>();
   const rowCnt = new Array<number>(N).fill(0);
@@ -9,7 +10,7 @@ export function computeAutoElim(): Set<number> {
   const regCnt: Record<number, number> = {};
 
   for (let i = 0; i < cells.length; i++) {
-    if (cells[i] !== 1) continue;
+    if (cells[i] !== CellState.STAR) continue;
     const r = Math.floor(i / N), c = i % N;
     rowCnt[r]++; colCnt[c]++;
     const rg = regions[i]; regCnt[rg] = (regCnt[rg] ?? 0) + 1;
@@ -25,21 +26,21 @@ export function computeAutoElim(): Set<number> {
 
   // Cells whose row/col/region already has K stars cannot hold another
   for (let i = 0; i < cells.length; i++) {
-    if (cells[i] === 1) continue;
+    if (cells[i] === CellState.STAR) continue;
     const r = Math.floor(i / N), c = i % N;
     if (rowCnt[r] >= K || colCnt[c] >= K || (regCnt[regions[i]] ?? 0) >= K) auto.add(i);
   }
 
   // Stars themselves are never marked auto-elim
-  for (let i = 0; i < cells.length; i++) if (cells[i] === 1) auto.delete(i);
+  for (let i = 0; i < cells.length; i++) if (cells[i] === CellState.STAR) auto.delete(i);
   return auto;
 }
 
 export function computeConflicts(): Set<number> {
-  const cells  = curState();
+  const cells  = getCurState();
   const { size: N, stars: K, regions } = state.puzzle!;
   const conflicts = new Set<number>();
-  const stars  = cells.reduce<number[]>((a, v, i) => (v === 1 ? [...a, i] : a), []);
+  const stars  = cells.reduce<number[]>((a, v, i) => (v === CellState.STAR ? [...a, i] : a), []);
   const rowCnt = new Array<number>(N).fill(0);
   const colCnt = new Array<number>(N).fill(0);
   const regCnt = new Array<number>(N * N).fill(0);
@@ -69,7 +70,7 @@ export function computeConflicts(): Set<number> {
 export function computeProblematic(autoElim: Set<number>): {
   badRows: Set<number>; badCols: Set<number>; badRegs: Set<number>;
 } {
-  const cells = curState();
+  const cells = getCurState();
   const { size: N, stars: K, regions } = state.puzzle!;
   const rowS = new Array<number>(N).fill(0), colS = new Array<number>(N).fill(0);
   const rowA = new Array<number>(N).fill(0), colA = new Array<number>(N).fill(0);
@@ -78,8 +79,8 @@ export function computeProblematic(autoElim: Set<number>): {
   for (let i = 0; i < cells.length; i++) {
     const r = Math.floor(i / N), c = i % N, rg = regions[i];
     regS[rg] ??= 0; regA[rg] ??= 0;
-    if (cells[i] === 1)                      { rowS[r]++; colS[c]++; regS[rg]++; }
-    else if (cells[i] === 0 && !autoElim.has(i)) { rowA[r]++; colA[c]++; regA[rg]++; }
+    if (cells[i] === CellState.STAR)                             { rowS[r]++; colS[c]++; regS[rg]++; }
+    else if (cells[i] === CellState.EMPTY && !autoElim.has(i))  { rowA[r]++; colA[c]++; regA[rg]++; }
   }
 
   const badRows = new Set<number>(), badCols = new Set<number>(), badRegs = new Set<number>();
@@ -92,9 +93,9 @@ export function computeProblematic(autoElim: Set<number>): {
 }
 
 export function checkWin(): boolean {
-  const cells = curState();
+  const cells = getCurState();
   const { stars: K, regions } = state.puzzle!;
   const numRegions = new Set(regions).size;
-  if (cells.filter(v => v === 1).length !== numRegions * K) return false;
+  if (cells.filter(v => v === CellState.STAR).length !== numRegions * K) return false;
   return computeConflicts().size === 0;
 }

@@ -1,4 +1,12 @@
-import type { Board, BoardsById, CellState, Puzzle } from './types';
+import { CellState, type Board, type BoardsById, type Puzzle } from './types';
+
+interface InteractionState {
+  isDragging: boolean;
+  dragMoved: boolean;
+  mousedownIdx: number;
+  mousedownPrevState: CellState;
+  isTouch: boolean;
+}
 
 interface GameState {
   puzzles: Puzzle[];
@@ -10,10 +18,7 @@ interface GameState {
   splitMode: boolean;
   undoStack: string[];
   redoStack: string[];
-  isDragging: boolean;
-  dragMoved: boolean;
-  mousedownIdx: number;
-  mousedownPrev: CellState;
+  interaction: InteractionState;
   currentCat: string | null;
   currentCatPuzzles: Puzzle[] | null;
 }
@@ -28,13 +33,16 @@ export const state: GameState = {
   splitMode: false,
   undoStack: [],
   redoStack: [],
-  isDragging: false,
-  dragMoved: false,
-  mousedownIdx: -1,
-  mousedownPrev: 0,
+  interaction: {
+    isDragging: false,
+    dragMoved: false,
+    mousedownIdx: -1,
+    mousedownPrevState: CellState.EMPTY,
+    isTouch: false,
+  },
   currentCat: null,
   currentCatPuzzles: null,
 };
 
-export const curBoard = (): Board => state.boardsById[state.currentBoardId];
-export const curState = (): CellState[] => state.boardsById[state.currentBoardId].state;
+export const getCurBoard = (): Board => state.boardsById[state.currentBoardId];
+export const getCurState = (): CellState[] => state.boardsById[state.currentBoardId].state;

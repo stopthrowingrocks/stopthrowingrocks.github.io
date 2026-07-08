@@ -4,7 +4,8 @@ import { sbUndo, sbRedo } from './undo';
 import { sbToggleSplit, sbMarkImpossible } from './split';
 import { sbShowSelector, sbGoBack, sbRestart } from './selector';
 import { sbOpenHelp } from './help';
-import { setupInteraction } from './interaction';
+import { addInteractionEventListeners } from './interaction';
+import { refresh } from './render';
 
 function wireButtons(): void {
   document.getElementById("sb-undo-btn")!      .addEventListener("click", sbUndo);
@@ -17,7 +18,13 @@ function wireButtons(): void {
 }
 
 wireButtons();
-setupInteraction();
+addInteractionEventListeners();
+
+let resizeTimer = 0;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = window.setTimeout(() => { if (state.puzzle) refresh(); }, 150);
+});
 
 fetch("levels.json")
   .then(r => r.json())
