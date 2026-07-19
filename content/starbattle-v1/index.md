@@ -14,8 +14,12 @@ tab_title = "Star Battle"
 <div id="sb-game">
   <div id="sb-title-row">
     <button id="sb-menu-btn" class="sb-back-btn">← Exit</button>
-    <div id="sb-title"></div>
-    <button id="sb-help-btn" class="sb-help-btn">?</button>
+    <div id="sb-title-nav">
+      <button id="sb-prev-btn" class="sb-back-btn">← Back</button>
+      <div id="sb-title"></div>
+      <button id="sb-next-btn" class="sb-back-btn">Next →</button>
+    </div>
+    <button id="sb-help-btn" class="sb-back-btn">Help?</button>
   </div>
   <div id="sb-status"></div>
   <div id="sb-branch-label"></div>

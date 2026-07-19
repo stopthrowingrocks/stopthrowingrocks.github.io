@@ -106,12 +106,14 @@ export function updateCellContents(): void {
         td.textContent = "★";
         td.style.color = conflicts.has(idx) ? "#e94560" : "#111";
       } else if (cells[idx] === CellState.ELIM || autoElim.has(idx)) {
-        const dot = document.createElement("span");
-        const dotSz = Math.round(sz * 0.18);
-        dot.style.cssText = `display:block;width:${dotSz}px;height:${dotSz}px;border-radius:50%;` +
-          `background:rgba(0,0,0,${cells[idx] !== CellState.ELIM ? 0.18 : 0.35});margin:auto;`;
-        td.innerHTML = "";
-        td.appendChild(dot);
+        const isAuto = cells[idx] !== CellState.ELIM;
+        const xSz = Math.round(sz * 0.32);
+        td.innerHTML =
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="${xSz}" height="${xSz}" ` +
+          `style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:block;">` +
+          `<path d="M2,2 L8,8 M8,2 L2,8" stroke="rgb(210,40,40)" stroke-width="2.2" stroke-linecap="round" ` +
+          `fill="none" opacity="${isAuto ? 0.3 : 0.85}"/>` +
+          `</svg>`;
         td.style.color = "";
       } else {
         td.innerHTML = "";
@@ -237,6 +239,15 @@ export function updateBoardNav(): void {
   }
 }
 
+export function updatePuzzleNav(): void {
+  const prevBtn = document.getElementById("sb-prev-btn") as HTMLButtonElement | null;
+  const nextBtn = document.getElementById("sb-next-btn") as HTMLButtonElement | null;
+  if (!prevBtn || !nextBtn) return;
+  const idx = state.puzzle ? state.puzzles.indexOf(state.puzzle) : -1;
+  prevBtn.disabled = idx <= 0;
+  nextBtn.disabled = idx < 0 || idx >= state.puzzles.length - 1;
+}
+
 export function refresh(): void {
-  renderTableStructure(); updateCellContents(); renderStatus(); updateBoardNav();
+  renderTableStructure(); updateCellContents(); renderStatus(); updateBoardNav(); updatePuzzleNav();
 }

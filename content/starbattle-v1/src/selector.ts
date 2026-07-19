@@ -10,9 +10,8 @@ import { sbOpenHelp } from './help';
 
 function makeHelpBtn(): HTMLButtonElement {
   const btn = document.createElement("button");
-  btn.className = "sb-help-btn";
-  btn.textContent = "?";
-  btn.title = "How to play";
+  btn.className = "sb-back-btn";
+  btn.textContent = "Help?";
   btn.addEventListener("click", sbOpenHelp);
   return btn;
 }
