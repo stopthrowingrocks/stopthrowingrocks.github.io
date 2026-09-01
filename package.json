@@ -4,7 +4,8 @@
     "content/wma1",
     "content/color-sort",
     "content/teraformr",
-    "content/starbattle-v1"
+    "content/starbattle-v1",
+    "content/starbattle-v2"
   ],
   "scripts": {
     "serve": "zola serve",

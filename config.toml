@@ -11,7 +11,17 @@ ignored_content = [
   "*.zola-ignore.md",
   "*.draft.md",
   "**/README.md",
-  "**/node_modules/**"
+  "**/node_modules/**",
+  # starbattle-v2 is a Vite app: publish only its built `build/` output, not the
+  # sources, tooling, or the dev-server entry (which would clobber index.html).
+  "**/starbattle-v2/index.html",
+  "**/starbattle-v2/*.json",
+  "**/starbattle-v2/*.ts",
+  "**/starbattle-v2/src/**",
+  "**/starbattle-v2/scripts/**",
+  "**/starbattle-v2/ref/**",
+  "**/starbattle-v2/public/**",
+  "**/starbattle-v2/dist/**"
 ]
 
 [markdown]
