@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Color Sort Explorer</title>
+    <link id="css" rel="stylesheet" type="text/css" href="css/style.css">
+    <script src="build/main.js"></script>
+    <script>
+      for (const key in exports) {
+        Object.defineProperty(window, key, {
+          get: () => exports[key],
+          configurable: true,
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="load">
+      <h2>Loading</h2>
+      <img src="https://cdn.scratch.mit.edu/scratchr2/static/__0c1805349a6fe15c01c668d3f8acd971__/images/ajax_loader_blue_48.gif">
+    </div>
+    <div id="gm-container" hidden>
+      <div id="gm-title">Color Sort Explorer</div>
+      <canvas id="gm-canvas"></canvas>
+
+      <!-- Controls area -->
+      <section id="controls" aria-label="Game controls">
+        <ul class="action-list">
+          <!-- One action -->
+          <li class="action-item">
+            <button class="action-button" type="button">
+              <img src="images/web.svg" class="action-icon">
+              <span class="action-text">Show winning moves.</span>
+            </button>
+            <!-- Optional associated message -->
+            <p class="action-message">
+              You can only undo the last three moves.
+            </p>
+          </li>
+
+          <!-- Another action -->
+          <li class="action-item">
+            <button class="action-button" type="button">
+              <span class="action-icon" aria-hidden="true">
+                <!-- icon -->
+              </span>
+              <span class="action-text">
+                <span class="action-title">Hint</span>
+                <span class="action-description">Show a suggested move.</span>
+              </span>
+            </button>
+            <!-- message is optional; omit if not needed -->
+          </li>
+        </ul>
+      </section>
+    </div>
+  </body>
+</html>
