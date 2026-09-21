@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Star Battle</title>
+
+  <!-- KaTeX -->
+  
+
+  <!-- CSS -->
+  <style>
+
+  /* light mode colors */
+  body {
+    --primary-color: #5871a2;
+    --primary-pale-color: #5871a233;
+    --primary-decoration-color: #5871a210;
+    --bg-color: #ffffff;
+    --text-color: #2f3030;
+    --text-pale-color: #767676;
+    --text-decoration-color: #a9a9a9;
+    --highlight-mark-color: #5f75b020;
+
+    --callout-note-color: #5871a2;
+    --callout-tip-color: #268556;
+    --callout-important-color: #885fc9;
+    --callout-warning-color: #ab6632;
+    --callout-caution-color: #c64e4e;
+  }
+
+  /* dark mode colors */
+  body.dark {
+    --primary-color: #6f8fd1;
+    --primary-pale-color: #6f8fd166;
+    --primary-decoration-color: #6f8fd112;
+    --bg-color: #1c1c1c;
+    --text-color: #c1c1c1;
+    --text-pale-color: #848484;
+    --text-decoration-color: #5f5f5f;
+    --highlight-mark-color: #8296cb3b;
+
+    --callout-note-color: #6f8fd1;
+    --callout-tip-color: #47976f;
+    --callout-important-color: #9776cd;
+    --callout-warning-color: #ad7a52;
+    --callout-caution-color: #d06161;
+  }
+
+  /* typography */
+  body {
+    --main-font: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --code-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --homepage-max-width: 768px;
+    --main-max-width: 768px;
+    --avatar-size: 60px;
+    --font-size: 16px;
+    --line-height: 1.75;
+    --img-border-radius: 0px;
+    --detail-border-radius: 0px;
+    --dark-mode-img-brightness: 0.75;
+    --dark-mode-chart-brightness: 0.75;
+    --inline-code-border-radius: 2px;
+    --inline-code-bg-color: var(--primary-decoration-color);
+    --block-code-border-radius: 0px;
+    --block-code-border-color: var(--primary-color);
+    --detail-border-color: var(--primary-color);
+  }
+
+</style>
+
+  <link rel="stylesheet" href="https://stopthrowingrocks.net/main.css">
+</head>
+
+<body>
+  <section class="section">
+    <div class="container">
+      
+<h1 class="title">
+  Star Battle
+</h1>
+
+<p class="subtitle"><em>PUZZLE. Place stars — one per row, column, and region, no touching.</em></p>
+<a href="/" style="color: black">See my other posts!</a>
+<link rel="stylesheet" href="starbattle.css">
+<div id="sb-selector"></div>
+<div id="sb-game">
+  <div id="sb-title-row">
+    <button id="sb-menu-btn" class="sb-back-btn">← Exit</button>
+    <div id="sb-title-nav">
+      <button id="sb-prev-btn" class="sb-back-btn">← Back</button>
+      <div id="sb-title"></div>
+      <button id="sb-next-btn" class="sb-back-btn">Next →</button>
+    </div>
+    <button id="sb-help-btn" class="sb-back-btn">Help?</button>
+  </div>
+  <div id="sb-status"></div>
+  <div id="sb-branch-label"></div>
+  <div id="sb-table-wrap"></div>
+  <div class="sb-btn-row">
+    <button id="sb-undo-btn" disabled>↩ Undo</button>
+    <button id="sb-redo-btn" disabled>↪ Redo</button>
+    <button id="sb-restart-btn">↺ Reset</button>
+    <button id="sb-split-btn">✂ Split</button>
+    <button id="sb-impossible-btn">✗ Impos.</button>
+  </div>
+</div>
+<script src="build.js"></script>
+
+
+    </div>
+  </section>
+</body>
+
+</html>
