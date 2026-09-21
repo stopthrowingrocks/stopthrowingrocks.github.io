@@ -49,6 +49,20 @@ class FactRefField extends Blockly.FieldDropdown {
   protected override doClassValidation_(newValue?: string): string | null {
     return newValue ?? null;
   }
+
+  /**
+   * Stock `FieldDropdown` labels itself from an option it cached when the value
+   * was set, matched against the menu as it was then. References to facts the
+   * proof creates (defined names, assumptions, claims) are always set before
+   * evaluation has produced those facts, so the cache kept showing "— fact —"
+   * while the stored reference was correct. Label from the current value
+   * against a freshly generated menu instead.
+   */
+  protected override getText_(): string | null {
+    const value = this.getValue();
+    const option = this.getOptions(false).find(([, optionValue]) => optionValue === value);
+    return option && typeof option[0] === 'string' ? option[0] : super.getText_();
+  }
 }
 
 class StarBattleConstants extends Blockly.zelos.ConstantProvider {
@@ -574,13 +588,22 @@ function workspaceProof(workspace: Blockly.WorkspaceSvg, puzzle: Puzzle): Block[
   return proofSequence(start?.getNextBlock() ?? null, puzzle);
 }
 
-/** Rewrite references saved by older builds, whose fact ids embedded block ids. */
+/**
+ * Rewrite references saved by older builds, whose fact ids embedded block ids,
+ * in the proof and in any floating stacks alike.
+ */
 function migrateLegacyReferences(workspace: Blockly.WorkspaceSvg, puzzle: Puzzle): void {
-  const ids = legacyFactIds(workspaceProof(workspace, puzzle));
+  const stacks = workspace.getTopBlocks(false).flatMap(top =>
+    proofSequence(top.type === 'sb_start' ? top.getNextBlock() : top, puzzle));
+  const ids = legacyFactIds(stacks);
+  let upgraded = 0;
   for (const ref of workspace.getBlocksByType('sb_fact', false)) {
     const current = ids.get(ref.getFieldValue('FACT'));
-    if (current) ref.setFieldValue(current, 'FACT');
+    if (!current) continue;
+    ref.setFieldValue(current, 'FACT');
+    upgraded++;
   }
+  if (upgraded > 0) console.info(`Upgraded ${upgraded} hypothesis reference${upgraded === 1 ? '' : 's'} saved by an older version.`);
 }
 
 /**
