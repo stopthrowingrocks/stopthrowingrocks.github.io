@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Fact, HypExpr, PState, Puzzle } from './types';
 import { parseLevels, groupPuzzles, factName, posLabel, REGION_COLORS } from './puzzles';
 import { evaluate, hypothesisForm, isSolved, opSymbol } from './engine';
@@ -33,13 +33,21 @@ function App() {
   const puzzle: Puzzle = groups[category][1][level];
   const evaluation = useMemo(() => evaluate(puzzle, blocks), [puzzle, blocks]);
   const selected = selectedId ? evaluation.results.get(selectedId) : undefined;
-  const displayState: PState = selected
+  const liveScope = selected
     ? (selected.scope ?? (selected.status === 'ok' ? selected.state : selected.prev))
-    : evaluation.final;
+    : undefined;
+  // While the scoped step is out of the proof (mid-drag, or set aside), keep
+  // showing the facts from where it last was, until something is clicked.
+  const [lastScope, setLastScope] = useState<{ id: string; state: PState } | null>(null);
+  if (selectedId && liveScope && (lastScope?.id !== selectedId || lastScope.state !== liveScope)) {
+    setLastScope({ id: selectedId, state: liveScope });
+  }
+  const displayState: PState = liveScope
+    ?? (selectedId && lastScope?.id === selectedId ? lastScope.state : evaluation.final);
   const solved = isSolved(evaluation.final);
   const displayName = (fact: Fact) => renames[fact.id] ?? factName(fact);
   const selectedHypothesisForm = selectedHypothesis
-    ? hypothesisForm(selected?.scope ?? selected?.prev ?? evaluation.final, puzzle, selectedHypothesis)
+    ? hypothesisForm(selected?.scope ?? selected?.prev ?? displayState, puzzle, selectedHypothesis)
     : null;
   const selectedFact = selectedHypothesisForm && 'fact' in selectedHypothesisForm
     ? selectedHypothesisForm.fact
@@ -56,6 +64,21 @@ function App() {
   const visibleFacts = searchActive && searchCells.length > 0
     ? displayState.facts.filter(fact => fact.cells.some(cell => searchCells.includes(cell)))
     : displayState.facts;
+
+  // Clicking dead space scopes back to the end of the proof. Active board cells
+  // and fact rows stop their pointerdown from bubbling, so they never get here.
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest(
+        'button, select, input, textarea, a, .blockly-host, .zoom-controls, ' +
+        '.blocklyWidgetDiv, .blocklyDropDownDiv, .blocklyTooltipDiv',
+      )) return;
+      workspaceRef.current?.resetScope();
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, []);
 
   function resetView() {
     setBlocks([]);

@@ -588,6 +588,16 @@ function workspaceProof(workspace: Blockly.WorkspaceSvg, puzzle: Puzzle): Block[
   return proofSequence(start?.getNextBlock() ?? null, puzzle);
 }
 
+/** The proof statement a block belongs to (itself, for a statement block). */
+function enclosingStep(block: Blockly.Block | null): Blockly.Block | null {
+  let step = block;
+  while (step && (
+    !step.type.startsWith('sb_') ||
+    ['sb_fact', 'sb_fact_difference', 'sb_fact_sum', 'sb_combine', 'sb_clique', 'sb_at_least_zero', 'sb_at_most', 'sb_bound', 'sb_count', 'sb_compare', 'sb_and', 'sb_or', 'sb_not', 'sb_is_star', 'sb_is_elim'].includes(step.type)
+  )) step = step.getParent();
+  return step;
+}
+
 /**
  * Rewrite references saved by older builds, whose fact ids embedded block ids,
  * in the proof and in any floating stacks alike.
@@ -837,6 +847,8 @@ export interface ProofWorkspaceHandle {
   pasteProofText: () => Promise<void>;
   /** End cell picking: forget a selected pick-cells block, keeping its proof step as context. */
   stopPicking: () => void;
+  /** Scope back to the end of the proof (a click on dead space). */
+  resetScope: () => void;
 }
 
 interface ProofWorkspaceProps extends BlocklyContext {
@@ -898,19 +910,13 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
 
   const reportSelection = useCallback((selected: Blockly.Block | null, fromSelectEvent = false) => {
     // Blockly clears its selection from a document-level pointer handler before
-    // a board click or external hypothesis drag arrives. Keep the current proof
-    // context through that transient deselection so claim-local facts do not
-    // disappear while they are being dragged. Selecting another block replaces it.
+    // a board click or external hypothesis drag arrives. Keep the selected block
+    // through that transient deselection so cell picking keeps working.
     const transientDeselection = selected === null;
     if (!selected && selectedRef.current) selected = selectedRef.current;
     selectedRef.current = selected;
-    let proof = selected;
-    while (proof && (
-      !proof.type.startsWith('sb_') ||
-      ['sb_fact', 'sb_fact_difference', 'sb_fact_sum', 'sb_combine', 'sb_clique', 'sb_at_least_zero', 'sb_at_most', 'sb_bound', 'sb_count', 'sb_compare', 'sb_and', 'sb_or', 'sb_not', 'sb_is_star', 'sb_is_elim'].includes(proof.type)
-    )) proof = proof.getParent();
-    if (proof) proofContextRef.current = proof;
-    else if (transientDeselection) proof = proofContextRef.current;
+    // Selection no longer decides the scope; see `commitScope`.
+    const proof = proofContextRef.current;
     const picking = !!selected && CELL_PICKING_TYPES.has(selected.type);
     const cells = selected && (selected.type === 'sb_clique' || selected.type === 'sb_at_least_zero' || selected.type === 'sb_at_most' || selected.type === 'sb_bound' || selected.type === 'sb_count')
       ? cellsFromText(selected.getFieldValue('CELLS'), puzzle)
@@ -939,6 +945,10 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
       callbacksRef.current.onSelection(null, false, [], null, false);
       callbacksRef.current.onChange([]);
       saveWorkspace(workspace);
+    },
+    resetScope() {
+      proofContextRef.current = null;
+      reportSelection(null);
     },
     stopPicking() {
       const workspace = workspaceRef.current;
@@ -1115,6 +1125,47 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
         saveWorkspace(workspace);
       }, AUTOSAVE_DELAY_MS);
     };
+    // Scope moves only when a proof block is clicked: a mouse selection inside
+    // the workspace becomes a candidate, a drag cancels it, and releasing the
+    // pointer commits it if the block's step is attached to the proof. Field
+    // clicks select the block without a Blockly click event, so the pointer
+    // release, not the click event, is what commits. Programmatic selections
+    // (picking a board cell, dropping a hypothesis) happen outside a press.
+    let pointerDownInWorkspace = false;
+    let pendingScope: Blockly.Block | null = null;
+    const commitScope = () => {
+      const step = enclosingStep(pendingScope);
+      pendingScope = null;
+      pointerDownInWorkspace = false;
+      if (!step || step.getRootBlock().type !== 'sb_start') return;
+      proofContextRef.current = step;
+      reportSelection(null);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      pointerDownInWorkspace = event.target instanceof Node && hostRef.current?.contains(event.target) === true;
+      pendingScope = null;
+    };
+    // Blockly stops pointerup from propagating, so listen in the capture phase.
+    // That runs before Blockly handles the release and queues its events (the
+    // selection, a drag start) on a 0 ms timer; committing two ticks later lets
+    // them land first, and the press stays open until the commit.
+    const onPointerUp = () => {
+      if (pointerDownInWorkspace) setTimeout(() => setTimeout(commitScope, 0), 0);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('pointerup', onPointerUp, true);
+    const followScope = (event: Blockly.Events.Abstract) => {
+      if (event.type === Blockly.Events.SELECTED) {
+        const selectedId = (event as Blockly.Events.Selected).newElementId;
+        if (pointerDownInWorkspace && selectedId) pendingScope = workspace.getBlockById(selectedId);
+      } else if (event.type === Blockly.Events.BLOCK_DRAG && (event as Blockly.Events.BlockDrag).isStart) {
+        pendingScope = null;
+      } else if (event.type === Blockly.Events.CLICK && (event as Blockly.Events.Click).targetType === 'workspace') {
+        pendingScope = null;
+        proofContextRef.current = null;
+        reportSelection(null);
+      }
+    };
     // While a define's name is cleared mid-edit, its references stay on the
     // last real name so the next keystroke can carry them over.
     const lastDefineNames = new WeakMap<Blockly.Block, string>();
@@ -1138,6 +1189,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
       }
     };
     const listener = (event: Blockly.Events.Abstract) => {
+      followScope(event);
       if (event.type === Blockly.Events.BLOCK_CHANGE) followDefineRename(event as Blockly.Events.BlockChange);
       if (event.type === Blockly.Events.SELECTED) {
         const selectedId = (event as Blockly.Events.Selected).newElementId;
@@ -1150,6 +1202,8 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
     };
     workspace.addChangeListener(listener);
     return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('pointerup', onPointerUp, true);
       if (proofUpdateTimer !== null) clearTimeout(proofUpdateTimer);
       if (autosaveTimer !== null) {
         clearTimeout(autosaveTimer);
