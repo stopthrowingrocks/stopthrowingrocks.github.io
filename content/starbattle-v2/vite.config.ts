@@ -3,10 +3,10 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 
 // https://vite.dev/config/
-export default defineConfig({
-  // The app is served by Zola as the page assets of content/starbattle-v2,
-  // so every built URL is rooted at /starbattle-v2/build/.
-  base: '/starbattle-v2/build/',
+export default defineConfig(({ command }) => ({
+  // The built app is served by Zola as the page assets of content/starbattle-v2,
+  // so built URLs are rooted at /starbattle-v2/build/. The dev server stays at /.
+  base: command === 'build' ? '/starbattle-v2/build/' : '/',
 
   // This app lives inside a repository with its own node_modules/workspaces.
   // Keep React on one module identity even when Vite follows nested or linked
@@ -31,4 +31,4 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] })
   ],
-})
+}))

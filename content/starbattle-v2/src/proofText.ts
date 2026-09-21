@@ -23,7 +23,7 @@ import { cellLabelToIndex, posLabel } from './puzzles';
  *   bool       := (<cmpop> <num> <num>) | (and <bool> <bool>) | (or <bool> <bool>)
  *               | (not <bool>) | (is-star <cell>) | (is-elim <cell>)
  *   num        := <int> | (count <cell>*) | (+ <num> <num>) | (- <num> <num>)
- *   fact, name := <symbol> | <string>     ; an unbound name is used verbatim as a fact id
+ *   fact, name := <symbol> | <string>     ; a fact's name is its id; `define` shadows an existing name
  *   cell       := <symbol>                ; board label, e.g. A1
  *
  * `_` stands for an empty/unset slot anywhere a <hyp>, <bool>, <fact>, or
@@ -47,7 +47,8 @@ Statements (a proof is zero or more of these, one after another):
   (rename <fact> "<text>")         give a fact a nicer display name
   (subsum <fact:from> <fact:sub>)  from -= sub  (sub's cells must lie inside from's)
   (addsum <fact:to> <fact:add>)    to += add  (to's and add's cells must be disjoint)
-  (define <name> <hyp>)            bind a new name to a hypothesis expression
+  (define <name> <hyp>)            bind a name to a hypothesis expression
+                                    (redefining a name replaces the earlier fact)
   (replace <fact> <hyp>)           overwrite a fact with a recomputed hypothesis
   (argument <stmt>*)               a no-op grouping of statements
   (claim <bool> <stmt>*)           prove a predicate; body proves it directly,
@@ -160,62 +161,30 @@ function sxToText(sx: Sx): string {
   return `(${sx.v.map(sxToText).join(' ')})`;
 }
 
-// ── Name scoping ──────────────────────────────────────────────────────────────
-// `define` is the only Block that introduces a referenceable name; every other
-// reference to a fact id is either a puzzle-provided id (row3, col0, region2 —
-// printed/parsed verbatim) or a `replace`d id that keeps whatever name it had.
-// Scopes nest with the block tree: a name defined inside a body is visible to
-// the rest of that body and anything nested further, not to what comes after
-// the enclosing block closes — matching how the engine threads cloned state
-// through constructor/by-cases branches without leaking facts between them.
-
-class Scope {
-  private readonly stack: Map<string, string>[] = [new Map()];
-  push(): void { this.stack.push(new Map()); }
-  pop(): void { this.stack.pop(); }
-  define(name: string, factId: string): void { this.stack[this.stack.length - 1].set(name, factId); }
-  /** The bare name bound to `factId` in the current scope chain, if any. */
-  nameOf(factId: string): string | null {
-    for (let i = this.stack.length - 1; i >= 0; i--) {
-      for (const [name, id] of this.stack[i]) if (id === factId) return name;
-    }
-    return null;
-  }
-  /** The fact id bound to `name`, or `name` itself if it isn't a local binding. */
-  resolve(name: string): string {
-    for (let i = this.stack.length - 1; i >= 0; i--) {
-      const id = this.stack[i].get(name);
-      if (id !== undefined) return id;
-    }
-    return name;
-  }
-}
-
 // ── Printing Block[] -> text ──────────────────────────────────────────────────
 
 let idCounter = 0;
 /** Fresh block id for text-parsed blocks — unique per `parseProof` call. */
 const newTextId = (): string => `text-${++idCounter}`;
 
-function printFactRef(factId: string | null, scope: Scope): Sx {
+function printFactRef(factId: string | null): Sx {
   if (factId === null) return { t: 'atom', v: '_', line: 0 };
-  const name = scope.nameOf(factId);
-  return { t: 'atom', v: printAtomOrString(name ?? factId), line: 0 };
+  return { t: 'atom', v: printAtomOrString(factId), line: 0 };
 }
 
 function printCell(cell: number, puzzle: Puzzle): Sx {
   return { t: 'atom', v: posLabel(cell, puzzle.size), line: 0 };
 }
 
-function printHyp(e: HypExpr | null, puzzle: Puzzle, scope: Scope): Sx {
+function printHyp(e: HypExpr | null, puzzle: Puzzle): Sx {
   if (!e) return { t: 'atom', v: '_', line: 0 };
-  if (e.kind === 'ref') return printFactRef(e.factId, scope);
+  if (e.kind === 'ref') return printFactRef(e.factId);
   if (e.kind === 'clique') return { t: 'list', v: [atom('clique'), ...e.cells.map(c => printCell(c, puzzle))], line: 0 };
   if (e.kind === 'bound') {
     return { t: 'list', v: [atom('bound'), atom(e.op), atom(String(e.target)), ...e.cells.map(c => printCell(c, puzzle))], line: 0 };
   }
   const op = e.kind === 'add' ? '+' : e.kind === 'sub' ? '-' : 'combine';
-  return { t: 'list', v: [atom(op), printHyp(e.left, puzzle, scope), printHyp(e.right, puzzle, scope)], line: 0 };
+  return { t: 'list', v: [atom(op), printHyp(e.left, puzzle), printHyp(e.right, puzzle)], line: 0 };
 }
 
 function printNum(e: NumExpr | null, puzzle: Puzzle): Sx {
@@ -249,63 +218,45 @@ function statusNote(r: BlockResult | undefined): string | undefined {
 
 type Results = Map<string, BlockResult>;
 
-function printBlockCore(b: Block, puzzle: Puzzle, scope: Scope, results?: Results): Sx {
+function printBlockCore(b: Block, puzzle: Puzzle, results?: Results): Sx {
   switch (b.type) {
-    case 'stars': return tagged('stars', [printHyp(b.expr, puzzle, scope)]);
-    case 'elims': return tagged('elims', [printHyp(b.expr, puzzle, scope)]);
-    case 'clear': return tagged('clear', [printFactRef(b.factId, scope)]);
-    case 'rename': return tagged('rename', [printFactRef(b.factId, scope), { t: 'str', v: b.name, line: 0 }]);
-    case 'subsum': return tagged('subsum', [printFactRef(b.fromFactId, scope), printFactRef(b.subFactId, scope)]);
-    case 'addsum': return tagged('addsum', [printFactRef(b.toFactId, scope), printFactRef(b.addFactId, scope)]);
-    case 'define': {
-      const sx = tagged('define', [atom(printAtomOrString(b.name)), printHyp(b.expr, puzzle, scope)]);
-      scope.define(b.name, `define:${b.id}`);
-      return sx;
-    }
-    case 'replace': return tagged('replace', [printFactRef(b.targetFactId, scope), printHyp(b.expr, puzzle, scope)]);
+    case 'stars': return tagged('stars', [printHyp(b.expr, puzzle)]);
+    case 'elims': return tagged('elims', [printHyp(b.expr, puzzle)]);
+    case 'clear': return tagged('clear', [printFactRef(b.factId)]);
+    case 'rename': return tagged('rename', [printFactRef(b.factId), { t: 'str', v: b.name, line: 0 }]);
+    case 'subsum': return tagged('subsum', [printFactRef(b.fromFactId), printFactRef(b.subFactId)]);
+    case 'addsum': return tagged('addsum', [printFactRef(b.toFactId), printFactRef(b.addFactId)]);
+    case 'define': return tagged('define', [atom(printAtomOrString(b.name)), printHyp(b.expr, puzzle)]);
+    case 'replace': return tagged('replace', [printFactRef(b.targetFactId), printHyp(b.expr, puzzle)]);
     case 'argument': {
-      scope.push();
-      const body = b.body.map(child => printBlock(child, puzzle, scope, results));
-      scope.pop();
+      const body = b.body.map(child => printBlock(child, puzzle, results));
       return tagged('argument', body);
     }
     case 'claim': {
-      scope.push();
-      const body = b.body.map(child => printBlock(child, puzzle, scope, results));
-      scope.pop();
+      const body = b.body.map(child => printBlock(child, puzzle, results));
       return { t: 'list', v: [atom('claim'), printBool(b.pred, puzzle), ...body], line: 0 };
     }
     case 'by_contradiction': {
-      scope.push();
-      const body = b.body.map(child => printBlock(child, puzzle, scope, results));
-      const via = printHyp(b.contradiction, puzzle, scope);
-      scope.pop();
+      const body = b.body.map(child => printBlock(child, puzzle, results));
+      const via = printHyp(b.contradiction, puzzle);
       return tagged('by-contradiction', [tagged('body', body), tagged('via', [via])]);
     }
     case 'constructor': {
-      scope.push();
-      const left = b.left.map(child => printBlock(child, puzzle, scope, results));
-      scope.pop();
-      scope.push();
-      const right = b.right.map(child => printBlock(child, puzzle, scope, results));
-      scope.pop();
+      const left = b.left.map(child => printBlock(child, puzzle, results));
+      const right = b.right.map(child => printBlock(child, puzzle, results));
       return tagged('constructor', [tagged('left', left), tagged('right', right)]);
     }
     case 'by_cases': {
-      scope.push();
-      const positive = b.positive.map(child => printBlock(child, puzzle, scope, results));
-      scope.pop();
-      scope.push();
-      const negative = b.negative.map(child => printBlock(child, puzzle, scope, results));
-      scope.pop();
+      const positive = b.positive.map(child => printBlock(child, puzzle, results));
+      const negative = b.negative.map(child => printBlock(child, puzzle, results));
       return { t: 'list', v: [atom('by-cases'), atom(b.split), tagged('positive', positive), tagged('negative', negative)], line: 0 };
     }
   }
 }
 
 /** `printBlockCore` plus, when `results` is supplied, this block's own ok/error/skipped comment. */
-function printBlock(b: Block, puzzle: Puzzle, scope: Scope, results?: Results): Sx {
-  const sx = printBlockCore(b, puzzle, scope, results);
+function printBlock(b: Block, puzzle: Puzzle, results?: Results): Sx {
+  const sx = printBlockCore(b, puzzle, results);
   if (!results || sx.t !== 'list') return sx;
   const note = statusNote(results.get(b.id));
   return note ? { ...sx, note } : sx;
@@ -351,8 +302,7 @@ function layout(sx: Sx, indent: number, statementBody: boolean): string {
  * so it doubles as feedback an agent can read, edit, and resubmit directly.
  */
 export function printProof(blocks: Block[], puzzle: Puzzle, results?: Results): string {
-  const scope = new Scope();
-  return blocks.map(b => layout(printBlock(b, puzzle, scope, results), 0, true)).join('\n\n');
+  return blocks.map(b => layout(printBlock(b, puzzle, results), 0, true)).join('\n\n');
 }
 
 // ── Parsing text -> Block[] ────────────────────────────────────────────────────
@@ -364,10 +314,10 @@ function expectAtom(sx: Sx | undefined, what: string): string {
   return sx.v;
 }
 
-function parseFactRef(sx: Sx | undefined, scope: Scope, what = 'a fact reference'): string | null {
+function parseFactRef(sx: Sx | undefined, what = 'a fact reference'): string | null {
   const raw = expectAtom(sx, what);
   if (raw === '_') return null;
-  return scope.resolve(raw);
+  return raw;
 }
 
 function parseCell(sx: Sx | undefined, puzzle: Puzzle): number {
@@ -388,11 +338,11 @@ function head(items: Sx[]): string {
   return first.v;
 }
 
-function parseHyp(sx: Sx | undefined, puzzle: Puzzle, scope: Scope): HypExpr | null {
+function parseHyp(sx: Sx | undefined, puzzle: Puzzle): HypExpr | null {
   if (!sx) throw new ParseError('expected a hypothesis expression');
   if (sx.t === 'atom' || sx.t === 'str') {
     if (sx.t === 'atom' && sx.v === '_') return null;
-    return { eid: newTextId(), kind: 'ref', factId: scope.resolve(sx.v) };
+    return { eid: newTextId(), kind: 'ref', factId: sx.v };
   }
   const items = sx.v;
   const kw = head(items);
@@ -408,8 +358,8 @@ function parseHyp(sx: Sx | undefined, puzzle: Puzzle, scope: Scope): HypExpr | n
     return {
       eid: newTextId(),
       kind: kw === '+' ? 'add' : kw === '-' ? 'sub' : 'combine',
-      left: parseHyp(items[1], puzzle, scope),
-      right: parseHyp(items[2], puzzle, scope),
+      left: parseHyp(items[1], puzzle),
+      right: parseHyp(items[2], puzzle),
     };
   }
   throw new ParseError(`unknown hypothesis expression "${kw}" on line ${sx.line}`);
@@ -458,71 +408,60 @@ function section(items: Sx[], tag: string, formLine: number): Sx[] {
   return found.v.slice(1);
 }
 
-function parseStmt(sx: Sx, puzzle: Puzzle, scope: Scope): Block {
+function parseStmt(sx: Sx, puzzle: Puzzle): Block {
   const items = asList(sx, 'a proof statement');
   const kw = head(items);
   const id = newTextId();
   switch (kw) {
-    case 'stars': return { id, type: 'stars', expr: parseHyp(items[1], puzzle, scope) };
-    case 'elims': return { id, type: 'elims', expr: parseHyp(items[1], puzzle, scope) };
-    case 'clear': return { id, type: 'clear', factId: parseFactRef(items[1], scope) };
+    case 'stars': return { id, type: 'stars', expr: parseHyp(items[1], puzzle) };
+    case 'elims': return { id, type: 'elims', expr: parseHyp(items[1], puzzle) };
+    case 'clear': return { id, type: 'clear', factId: parseFactRef(items[1]) };
     case 'rename': return {
       id, type: 'rename',
-      factId: parseFactRef(items[1], scope),
+      factId: parseFactRef(items[1]),
       name: items[2]?.t === 'str' || items[2]?.t === 'atom' ? items[2].v : '',
     };
     case 'subsum': return {
       id, type: 'subsum',
-      fromFactId: parseFactRef(items[1], scope),
-      subFactId: parseFactRef(items[2], scope),
+      fromFactId: parseFactRef(items[1]),
+      subFactId: parseFactRef(items[2]),
     };
     case 'addsum': return {
       id, type: 'addsum',
-      toFactId: parseFactRef(items[1], scope),
-      addFactId: parseFactRef(items[2], scope),
+      toFactId: parseFactRef(items[1]),
+      addFactId: parseFactRef(items[2]),
     };
     case 'define': {
       const name = expectAtom(items[1], 'a hypothesis name');
-      const expr = parseHyp(items[2], puzzle, scope);
-      if (name !== '_') scope.define(name, `define:${id}`);
+      const expr = parseHyp(items[2], puzzle);
       return { id, type: 'define', name: name === '_' ? '' : name, expr };
     }
     case 'replace': return {
       id, type: 'replace',
-      targetFactId: parseFactRef(items[1], scope),
-      expr: parseHyp(items[2], puzzle, scope),
+      targetFactId: parseFactRef(items[1]),
+      expr: parseHyp(items[2], puzzle),
     };
     case 'argument': {
-      scope.push();
-      const body = items.slice(1).map(s => parseStmt(s, puzzle, scope));
-      scope.pop();
+      const body = items.slice(1).map(s => parseStmt(s, puzzle));
       return { id, type: 'argument', body };
     }
     case 'claim': {
       const pred = parseBool(items[1], puzzle);
-      scope.push();
-      const body = items.slice(2).map(s => parseStmt(s, puzzle, scope));
-      scope.pop();
+      const body = items.slice(2).map(s => parseStmt(s, puzzle));
       return { id, type: 'claim', pred, body };
     }
     case 'by-contradiction': {
       const bodyItems = section(items.slice(1), 'body', sx.line);
       const viaItems = section(items.slice(1), 'via', sx.line);
-      scope.push();
-      const body = bodyItems.map(s => parseStmt(s, puzzle, scope));
-      const contradiction = parseHyp(viaItems[0], puzzle, scope);
-      scope.pop();
+      const body = bodyItems.map(s => parseStmt(s, puzzle));
+      const contradiction = parseHyp(viaItems[0], puzzle);
       return { id, type: 'by_contradiction', body, contradiction };
     }
     case 'constructor': {
       const leftItems = section(items.slice(1), 'left', sx.line);
       const rightItems = section(items.slice(1), 'right', sx.line);
-      scope.push();
-      const left = leftItems.map(s => parseStmt(s, puzzle, scope));
-      scope.pop();
-      scope.push();
-      const right = rightItems.map(s => parseStmt(s, puzzle, scope));
-      scope.pop();
+      const left = leftItems.map(s => parseStmt(s, puzzle));
+      const right = rightItems.map(s => parseStmt(s, puzzle));
       return { id, type: 'constructor', left, right };
     }
     case 'by-cases': {
@@ -530,12 +469,8 @@ function parseStmt(sx: Sx, puzzle: Puzzle, scope: Scope): Block {
       if (split !== 'left' && split !== 'right') throw new ParseError(`by-cases expects "left" or "right" on line ${sx.line}`);
       const positiveItems = section(items.slice(2), 'positive', sx.line);
       const negativeItems = section(items.slice(2), 'negative', sx.line);
-      scope.push();
-      const positive = positiveItems.map(s => parseStmt(s, puzzle, scope));
-      scope.pop();
-      scope.push();
-      const negative = negativeItems.map(s => parseStmt(s, puzzle, scope));
-      scope.pop();
+      const positive = positiveItems.map(s => parseStmt(s, puzzle));
+      const negative = negativeItems.map(s => parseStmt(s, puzzle));
       return { id, type: 'by_cases', split, positive, negative };
     }
     default:
@@ -545,7 +480,6 @@ function parseStmt(sx: Sx, puzzle: Puzzle, scope: Scope): Block {
 
 export function parseProof(text: string, puzzle: Puzzle): Block[] {
   idCounter = 0;
-  const scope = new Scope();
   let forms: Sx[];
   try {
     forms = readAll(text);
@@ -555,7 +489,7 @@ export function parseProof(text: string, puzzle: Puzzle): Block[] {
   const blocks: Block[] = [];
   for (const form of forms) {
     try {
-      blocks.push(parseStmt(form, puzzle, scope));
+      blocks.push(parseStmt(form, puzzle));
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : String(error));
     }

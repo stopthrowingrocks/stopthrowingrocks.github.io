@@ -10,6 +10,7 @@ import * as Blockly from 'blockly';
 import type { Block, BlockResult, BoolExpr, Fact, HypExpr, NumExpr, Puzzle } from './types';
 import { posLabel } from './puzzles';
 import { printProof, parseProof } from './proofText';
+import { legacyFactIds } from './engine';
 
 interface BlocklyContext {
   puzzle: Puzzle;
@@ -24,6 +25,8 @@ const STAR_BATTLE_RENDERER = 'starbattle_zelos';
 const START_SCALE = 0.9;
 const PROOF_UPDATE_DELAY_MS = 40;
 const AUTOSAVE_DELAY_MS = 300;
+/** Blocks that, while selected, turn board clicks into cell picks for themselves. */
+const CELL_PICKING_TYPES = new Set(['sb_clique', 'sb_at_least_zero', 'sb_at_most', 'sb_bound', 'sb_count', 'sb_is_star', 'sb_is_elim']);
 const PROOF_EVENT_TYPES = new Set<string>([
   Blockly.Events.BLOCK_CREATE,
   Blockly.Events.BLOCK_DELETE,
@@ -571,6 +574,37 @@ function workspaceProof(workspace: Blockly.WorkspaceSvg, puzzle: Puzzle): Block[
   return proofSequence(start?.getNextBlock() ?? null, puzzle);
 }
 
+/** Rewrite references saved by older builds, whose fact ids embedded block ids. */
+function migrateLegacyReferences(workspace: Blockly.WorkspaceSvg, puzzle: Puzzle): void {
+  const ids = legacyFactIds(workspaceProof(workspace, puzzle));
+  for (const ref of workspace.getBlocksByType('sb_fact', false)) {
+    const current = ids.get(ref.getFieldValue('FACT'));
+    if (current) ref.setFieldValue(current, 'FACT');
+  }
+}
+
+/**
+ * A define's name is its fact's id, so renaming it must carry along the
+ * references that resolve to it: everything after it in its statement list,
+ * nested bodies included, up to where `from` is defined again.
+ */
+function renameReferences(first: Blockly.Block | null, from: string, to: string): void {
+  for (let stmt = first; stmt; stmt = stmt.getNextBlock()) {
+    for (const input of stmt.inputList) {
+      const child = input.connection?.targetBlock() ?? null;
+      if (!child) continue;
+      if (input instanceof Blockly.inputs.StatementInput) {
+        renameReferences(child, from, to);
+        continue;
+      }
+      for (const ref of child.getDescendants(false)) {
+        if (ref.type === 'sb_fact' && ref.getFieldValue('FACT') === from) ref.setFieldValue(to, 'FACT');
+      }
+    }
+    if (stmt.type === 'sb_define' && stmt.getFieldValue('NAME').trim() === from) return;
+  }
+}
+
 // ── Block[] -> Blockly blocks (the inverse of proofBlock/factExpression/numExpr/boolExpr) ──
 // Used to load a text-parsed proof (see proofText.ts) into the visual editor.
 
@@ -778,11 +812,14 @@ export interface ProofWorkspaceHandle {
   copyProofText: () => Promise<void>;
   /** Parse lispy proof text from the clipboard and replace the workspace with it. */
   pasteProofText: () => Promise<void>;
+  /** End cell picking: forget a selected pick-cells block, keeping its proof step as context. */
+  stopPicking: () => void;
 }
 
 interface ProofWorkspaceProps extends BlocklyContext {
   onChange: (blocks: Block[]) => void;
-  onSelection: (proofId: string | null, picking: boolean, cells: number[], hypothesis: HypExpr | null) => void;
+  /** `startedPicking` is true only when the user has just selected a pick-cells block. */
+  onSelection: (proofId: string | null, picking: boolean, cells: number[], hypothesis: HypExpr | null, startedPicking: boolean) => void;
 }
 
 export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps>(function BlocklyProof({
@@ -828,6 +865,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
       workspace.clear();
       Blockly.serialization.workspaces.load(saved.workspace, workspace);
       if (!workspace.getTopBlocks(false).some(block => block.type === 'sb_start')) addStartBlock(workspace);
+      migrateLegacyReferences(workspace, puzzle);
     } finally {
       Blockly.Events.enable();
     }
@@ -835,7 +873,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
     saveWorkspace(workspace);
   }, [addStartBlock, puzzle, saveWorkspace, storageKey]);
 
-  const reportSelection = useCallback((selected: Blockly.Block | null) => {
+  const reportSelection = useCallback((selected: Blockly.Block | null, fromSelectEvent = false) => {
     // Blockly clears its selection from a document-level pointer handler before
     // a board click or external hypothesis drag arrives. Keep the current proof
     // context through that transient deselection so claim-local facts do not
@@ -850,14 +888,16 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
     )) proof = proof.getParent();
     if (proof) proofContextRef.current = proof;
     else if (transientDeselection) proof = proofContextRef.current;
-    const picking = selected?.type === 'sb_clique' || selected?.type === 'sb_at_least_zero' || selected?.type === 'sb_at_most' || selected?.type === 'sb_bound' || selected?.type === 'sb_count' || selected?.type === 'sb_is_star' || selected?.type === 'sb_is_elim';
+    const picking = !!selected && CELL_PICKING_TYPES.has(selected.type);
     const cells = selected && (selected.type === 'sb_clique' || selected.type === 'sb_at_least_zero' || selected.type === 'sb_at_most' || selected.type === 'sb_bound' || selected.type === 'sb_count')
       ? cellsFromText(selected.getFieldValue('CELLS'), puzzle)
       : selected && (selected.type === 'sb_is_star' || selected.type === 'sb_is_elim')
         ? [Number(selected.getFieldValue('CELL'))]
         : [];
     const hypothesis = factExpression(selected, puzzle);
-    callbacksRef.current.onSelection(proof?.id ?? null, picking, cells, hypothesis);
+    // A replayed selection (transient deselection, post-edit re-report) is not a new pick.
+    const startedPicking = fromSelectEvent && !transientDeselection && picking;
+    callbacksRef.current.onSelection(proof?.id ?? null, picking, cells, hypothesis, startedPicking);
   }, [puzzle]);
 
   useImperativeHandle(ref, () => ({
@@ -873,9 +913,19 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
       }
       selectedRef.current = null;
       proofContextRef.current = null;
-      callbacksRef.current.onSelection(null, false, [], null);
+      callbacksRef.current.onSelection(null, false, [], null, false);
       callbacksRef.current.onChange([]);
       saveWorkspace(workspace);
+    },
+    stopPicking() {
+      const workspace = workspaceRef.current;
+      const selected = selectedRef.current;
+      if (!workspace || !selected || !CELL_PICKING_TYPES.has(selected.type)) return;
+      // Forget the pick block so a later transient deselection cannot replay it.
+      selectedRef.current = null;
+      const current = Blockly.common.getSelected();
+      if (current instanceof Blockly.BlockSvg && current === selected) Blockly.getFocusManager().focusNode(workspace);
+      reportSelection(null);
     },
     async copyProof() {
       const workspace = workspaceRef.current;
@@ -917,7 +967,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
       }
       selectedRef.current = null;
       proofContextRef.current = null;
-      callbacksRef.current.onSelection(null, false, [], null);
+      callbacksRef.current.onSelection(null, false, [], null, false);
       callbacksRef.current.onChange(workspaceProof(workspace, puzzle));
       saveWorkspace(workspace);
     },
@@ -1042,10 +1092,33 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
         saveWorkspace(workspace);
       }, AUTOSAVE_DELAY_MS);
     };
+    // While a define's name is cleared mid-edit, its references stay on the
+    // last real name so the next keystroke can carry them over.
+    const lastDefineNames = new WeakMap<Blockly.Block, string>();
+    const followDefineRename = (change: Blockly.Events.BlockChange) => {
+      const define = change.blockId ? workspace.getBlockById(change.blockId) : null;
+      if (define?.type !== 'sb_define' || change.element !== 'field' || change.name !== 'NAME') return;
+      const from = String(change.oldValue ?? '').trim() || lastDefineNames.get(define) || '';
+      const to = String(change.newValue ?? '').trim();
+      if (!to) {
+        if (from) lastDefineNames.set(define, from);
+        return;
+      }
+      lastDefineNames.delete(define);
+      if (!from || from === to) return;
+      const group = Blockly.Events.getGroup();
+      Blockly.Events.setGroup(change.group || true);
+      try {
+        renameReferences(define.getNextBlock(), from, to);
+      } finally {
+        Blockly.Events.setGroup(group);
+      }
+    };
     const listener = (event: Blockly.Events.Abstract) => {
+      if (event.type === Blockly.Events.BLOCK_CHANGE) followDefineRename(event as Blockly.Events.BlockChange);
       if (event.type === Blockly.Events.SELECTED) {
         const selectedId = (event as Blockly.Events.Selected).newElementId;
-        reportSelection(selectedId ? workspace.getBlockById(selectedId) : null);
+        reportSelection(selectedId ? workspace.getBlockById(selectedId) : null, true);
       }
       if (PROOF_EVENT_TYPES.has(event.type)) {
         scheduleProofUpdate();

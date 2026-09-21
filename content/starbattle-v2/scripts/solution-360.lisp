@@ -133,7 +133,7 @@
 
 (elims region0)  ; ok: ✕ D1
 
-(claim (!= (count L14 M14) 1) (by-contradiction (body (elims (- (clique L13 M13 L14 M14) "contra-7eh.{x;m?(l%8C@(,_p`-0")) (stars (- region9 (clique M11 M12))) (stars region9) (elims col12) (stars region1) (elims col13) (stars region10) (stars (- region13 (+ (clique F13 E14 F14) (clique E12 F12)))) (stars (- region13 (clique F13 E14 F14))) (stars (- col4 (clique E9 E10))) (elims row13)) (via (- region7 (+ (clique C9 C10) (clique D9 E9 D10 E10))))))  ; ok: proved: ★{L14 M14} ≠ 1
+(claim (!= (count L14 M14) 1) (by-contradiction (body (elims (- (clique L13 M13 L14 M14) asm193_194=1)) (stars (- region9 (clique M11 M12))) (stars region9) (elims col12) (stars region1) (elims col13) (stars region10) (stars (- region13 (+ (clique F13 E14 F14) (clique E12 F12)))) (stars (- region13 (clique F13 E14 F14))) (stars (- col4 (clique E9 E10))) (elims row13)) (via (- region7 (+ (clique C9 C10) (clique D9 E9 D10 E10))))))  ; ok: proved: ★{L14 M14} ≠ 1
 
 (replace "clm193_194!=1" (combine "clm193_194!=1" (clique L14 M14)))  ; ok: claim L14 M14: ★{L14 M14} ≤ 0
 

@@ -657,6 +657,14 @@ export function claimConclusion(pred: BoolExpr | null): { lits: LoweredCmp[] } |
   return { lits };
 }
 
+/**
+ * Id of a fact introduced from a lowered comparison (a claim's conclusion, an
+ * assumption, a proved goal). Derived from the literal itself, never from the
+ * introducing block's id: blocks get fresh ids whenever they are pasted,
+ * duplicated or loaded from text, and references must survive that.
+ */
+const litFactId = (prefix: string, l: LoweredCmp): string => prefix + l.cells.join('_') + l.op + l.k;
+
 /** Canonical key for comparing arbitrary valid Boolean propositions. */
 function propositionKey(pred: BoolExpr | null): string | null {
   const terms = dnf(pred, false);
@@ -668,7 +676,7 @@ function propositionKey(pred: BoolExpr | null): string | null {
   return keys.sort().join('|');
 }
 
-function addGoalFacts(s: PState, puzzle: Puzzle, pred: BoolExpr | null, id: string): string | null {
+function addGoalFacts(s: PState, puzzle: Puzzle, pred: BoolExpr | null, prefix: 'asm' | 'prv'): string | null {
   const starCell = pred?.kind === 'is_star'
     ? pred.cell
     : pred?.kind === 'not' && pred.a?.kind === 'is_elim' ? pred.a.cell : undefined;
@@ -692,7 +700,12 @@ function addGoalFacts(s: PState, puzzle: Puzzle, pred: BoolExpr | null, id: stri
     if (!s.propositions.some(prop => propositionKey(prop) === key) && pred) s.propositions.push(pred);
     return null;
   }
-  c.lits.forEach((l, i) => s.facts.push({ id: `${id}-${i}`, kind: 'derived', index: 0, label: 'assumption', op: l.op, cells: [...l.cells], target: l.k, impossible: false }));
+  for (const l of c.lits) {
+    const id = litFactId(prefix, l);
+    // Re-assuming a literal that is already in scope restates the same fact.
+    s.facts = s.facts.filter(fact => fact.id !== id);
+    s.facts.push({ id, kind: 'derived', index: 0, label: 'assumption', op: l.op, cells: [...l.cells], target: l.k, impossible: false });
+  }
   normalize(s);
   return null;
 }
@@ -799,9 +812,12 @@ function evalSeq(
         break;
       }
       case 'define': {
+        // The name is the fact's id (not the block id, which changes on every
+        // paste or text load), so redefining a name shadows the earlier fact.
         const name = b.name.trim();
+        const shadowed = next.facts.some(fact => fact.id === name) ? name : null;
         const r = name
-          ? applyHypExpression(next, puzzle, b.expr, `define:${b.id}`, name, null, true)
+          ? applyHypExpression(next, puzzle, b.expr, name, name, shadowed, true)
           : { error: 'enter a hypothesis name' };
         error = r.error; note = r.note;
         break;
@@ -835,7 +851,7 @@ function evalSeq(
       case 'claim': {
         const litText = (l: LoweredCmp): string =>
           `★{${l.cells.map(c => posLabel(c, puzzle.size)).join(' ')}} ${opSymbol(l.op)} ${l.k}`;
-        const litId = (l: LoweredCmp): string => 'clm' + l.cells.join('_') + l.op + l.k;
+        const litId = (l: LoweredCmp): string => litFactId('clm', l);
 
         const conc = claimConclusion(b.pred);
         const propKey = propositionKey(b.pred);
@@ -878,7 +894,7 @@ function evalSeq(
         const negatedGoal: BoolExpr | null = goal.kind === 'not'
           ? goal.a
           : { eid: `${b.id}-neg`, kind: 'not', a: goal };
-        error = addGoalFacts(inner, puzzle, negatedGoal, `contra-${b.id}`) ?? undefined;
+        error = addGoalFacts(inner, puzzle, negatedGoal, 'asm') ?? undefined;
         if (error) { skipChildren(b, results, entries, prev); break; }
         const end = evalSeq(puzzle, b.body, inner, results, entries, b.id);
         scope = end;
@@ -902,7 +918,7 @@ function evalSeq(
             if (!contradictionState.contradiction && !suppliedFact?.impossible) {
               error = 'the supplied hypothesis is not contradictory';
             } else {
-              addGoalFacts(next, puzzle, goal, `proved-${b.id}`);
+              addGoalFacts(next, puzzle, goal, 'prv');
               note = 'explicit contradiction closes the goal';
             }
           }
@@ -915,7 +931,7 @@ function evalSeq(
         const right = evalSeq(puzzle, b.right, cloneState(prev), results, entries, `${b.id}:right`, goal.b);
         if (sequenceErrored(b.left, results) || sequenceErrored(b.right, results)) error = 'a constructor branch contains an invalid step';
         else if (!goalSatisfied(left, goal.a) || !goalSatisfied(right, goal.b)) error = 'both constructor goals must be proved';
-        else { addGoalFacts(next, puzzle, goal, `proved-${b.id}`); note = 'both sides proved'; }
+        else { addGoalFacts(next, puzzle, goal, 'prv'); note = 'both sides proved'; }
         break;
       }
       case 'by_cases': {
@@ -923,14 +939,14 @@ function evalSeq(
         const split = b.split === 'left' ? goal.a : goal.b;
         const other = b.split === 'left' ? goal.b : goal.a;
         const pos = cloneState(prev), neg = cloneState(prev);
-        const ae = addGoalFacts(pos, puzzle, split, `case-${b.id}-pos`);
-        const ne = addGoalFacts(neg, puzzle, { eid: `${b.id}-neg`, kind: 'not', a: split }, `case-${b.id}-neg`);
+        const ae = addGoalFacts(pos, puzzle, split, 'asm');
+        const ne = addGoalFacts(neg, puzzle, { eid: `${b.id}-neg`, kind: 'not', a: split }, 'asm');
         if (ae || ne) { error = ae ?? ne ?? undefined; skipChildren(b, results, entries, prev); break; }
         evalSeq(puzzle, b.positive, pos, results, entries, `${b.id}:positive`, split);
         const negative = evalSeq(puzzle, b.negative, neg, results, entries, `${b.id}:negative`, other);
         if (sequenceErrored(b.positive, results) || sequenceErrored(b.negative, results)) error = 'a case branch contains an invalid step';
         else if (!goalSatisfied(negative, other)) error = 'the negative case did not prove the other disjunct';
-        else { addGoalFacts(next, puzzle, goal, `proved-${b.id}`); note = 'both cases close the OR goal'; }
+        else { addGoalFacts(next, puzzle, goal, 'prv'); note = 'both cases close the OR goal'; }
         break;
       }
     }
@@ -944,6 +960,62 @@ function evalSeq(
     }
   }
   return cur;
+}
+
+/**
+ * Maps the fact ids older builds derived from block ids — `define:<id>`,
+ * `contra-<id>-<i>`, `case-<id>-pos|neg-<i>`, `proved-<id>-<i>` — to the ids
+ * those facts carry now, so proofs saved before the change keep their
+ * references. Goals are threaded exactly as `evalSeq` threads them.
+ */
+export function legacyFactIds(blocks: Block[]): Map<string, string> {
+  const ids = new Map<string, string>();
+  const record = (legacyPrefix: string, prefix: 'asm' | 'prv', pred: BoolExpr | null) => {
+    const c = claimConclusion(pred);
+    if (!('error' in c)) c.lits.forEach((l, i) => ids.set(`${legacyPrefix}-${i}`, litFactId(prefix, l)));
+  };
+  const not = (a: BoolExpr): BoolExpr => ({ eid: '', kind: 'not', a });
+  const walk = (seq: Block[], goal: BoolExpr | null): void => {
+    for (const b of seq) {
+      switch (b.type) {
+        case 'define':
+          if (b.name.trim()) ids.set(`define:${b.id}`, b.name.trim());
+          break;
+        case 'argument':
+          walk(b.body, goal);
+          break;
+        case 'claim':
+          walk(b.body, b.pred);
+          break;
+        case 'by_contradiction':
+          if (goal) {
+            record(`contra-${b.id}`, 'asm', goal.kind === 'not' ? goal.a : not(goal));
+            record(`proved-${b.id}`, 'prv', goal);
+          }
+          walk(b.body, null);
+          break;
+        case 'constructor':
+          if (goal?.kind === 'and') record(`proved-${b.id}`, 'prv', goal);
+          walk(b.left, goal?.kind === 'and' ? goal.a : null);
+          walk(b.right, goal?.kind === 'and' ? goal.b : null);
+          break;
+        case 'by_cases': {
+          const split = goal?.kind === 'or' ? (b.split === 'left' ? goal.a : goal.b) : null;
+          const other = goal?.kind === 'or' ? (b.split === 'left' ? goal.b : goal.a) : null;
+          if (goal?.kind === 'or' && split) {
+            record(`case-${b.id}-pos`, 'asm', split);
+            record(`case-${b.id}-neg`, 'asm', not(split));
+            record(`proved-${b.id}`, 'prv', goal);
+          }
+          walk(b.positive, split);
+          walk(b.negative, other);
+          break;
+        }
+      }
+    }
+  };
+  walk(blocks, null);
+  return ids;
 }
 
 export function evaluate(puzzle: Puzzle, blocks: Block[]): {

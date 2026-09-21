@@ -83,11 +83,14 @@ function App() {
   }
 
   function toggleSearch() {
-    setSearchActive(active => {
-      const next = !active;
-      if (!next) setSearchCells([]);
-      return next;
-    });
+    if (searchActive) {
+      setSearchActive(false);
+      setSearchCells([]);
+      return;
+    }
+    // Search and cell picking both claim board clicks: starting a search ends picking.
+    workspaceRef.current?.stopPicking();
+    setSearchActive(true);
   }
 
   function toggleSearchCell(idx: number) {
@@ -250,11 +253,16 @@ function App() {
             fallbackFacts={displayState.facts}
             factLabel={displayName}
             onChange={setBlocks}
-            onSelection={(proofId, isPicking, cells, hypothesis) => {
+            onSelection={(proofId, isPicking, cells, hypothesis, startedPicking) => {
               setSelectedId(proofId);
               setSelectedHypothesis(hypothesis);
               setPicking(isPicking);
               setPickedCells(cells);
+              // Clicking into a pick-cells block ends any search-by-cell.
+              if (startedPicking) {
+                setSearchActive(false);
+                setSearchCells([]);
+              }
             }}
           />
         </div>
