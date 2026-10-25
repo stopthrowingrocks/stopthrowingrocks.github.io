@@ -83,6 +83,9 @@ export interface PState {
  *  - addsum   → congrArg₂ (+): add two disjoint counts into one over the union
  *  - clique   → adj_le_one: a set of pairwise-touching cells holds at most one
  *               star (two would be adjacent)
+ *  - split    → pigeonhole: parts that are disjoint, cover a count fact exactly,
+ *               and whose upper bounds total its count must each be exactly tight,
+ *               since any slack would leave the total short
  *  - claim    → a hexagon predicate proven by contradiction: its negation is
  *               put in disjunctive normal form and each DNF term becomes a
  *               refutation arm (comparison literals close under negation:
@@ -99,6 +102,7 @@ export type Block =
   | { id: string; type: 'define'; name: string; expr: HypExpr | null }
   | { id: string; type: 'replace'; targetFactId: string | null; expr: HypExpr | null }
   | { id: string; type: 'addsum'; addFactId: string | null; toFactId: string | null }
+  | { id: string; type: 'split'; name: string; expr: HypExpr | null; parts: HypExpr[] }
   | { id: string; type: 'argument'; body: Block[] }
   | { id: string; type: 'claim'; pred: BoolExpr | null; body: Block[] }
   | { id: string; type: 'by_contradiction'; body: Block[]; contradiction: HypExpr | null }

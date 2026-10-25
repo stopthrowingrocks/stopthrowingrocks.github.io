@@ -433,6 +433,100 @@ function applyClique(
   return { note: `at most one ★ among ${labels}` };
 }
 
+/**
+ * `split h as n into p₁ … pₙ`: the parts must be disjoint, cover h's cells exactly, and
+ * their upper bounds must total h's count. Then no part can fall short of its bound —
+ * the total would not reach h's count — so every part holds exactly its bound. Results
+ * are added as `<prefix>-1`, `<prefix>-2`, …; nothing that went in is consumed.
+ */
+function applySplit(
+  s: PState,
+  puzzle: Puzzle,
+  blockId: string,
+  rawName: string,
+  expr: HypExpr | null,
+  parts: HypExpr[],
+): { error?: string; note?: string } {
+  if (!expr) return { error: 'choose a hypothesis to split' };
+  const temporary = `split:${blockId}:`;
+  const dropTemporaries = () => { s.facts = s.facts.filter(fact => !fact.id.startsWith(temporary)); };
+  const fail = (error: string) => { dropTemporaries(); return { error }; };
+
+  const source = applyHypExpression(s, puzzle, expr, `${temporary}source`, 'split source');
+  if (source.error) return fail(source.error);
+  const name = rawName.trim();
+  if (!name && expr.kind !== 'ref') return fail('give this split a name with "as"');
+  if (parts.length < 2) return fail('add at least two parts');
+
+  const partIds: string[] = [];
+  for (const [index, part] of parts.entries()) {
+    const result = applyHypExpression(s, puzzle, part, `${temporary}${index}`, `part ${index + 1}`);
+    if (result.error) return fail(result.error);
+    if (!result.factId) return fail('that hypothesis is not available here');
+    partIds.push(result.factId);
+  }
+
+  // Re-read every fact now that the parts have been evaluated: normalization rebuilds
+  // the pool, and a `combine` part consumes the hypotheses it merges.
+  const whole = s.facts.find(fact => fact.id === source.factId);
+  if (!whole) return fail('that hypothesis is not available here');
+  const pieces: Fact[] = [];
+  for (const id of partIds) {
+    const piece = s.facts.find(fact => fact.id === id);
+    if (!piece) return fail('that hypothesis is not available here');
+    pieces.push(piece);
+  }
+
+  if (whole.op !== '=' && whole.op !== '>=') return fail('split needs an exact count or a lower bound');
+  if (pieces.some(piece => piece.op !== '=' && piece.op !== '<=')) {
+    return fail('each part needs an exact count or an upper bound');
+  }
+
+  const covered = new Set<number>();
+  for (const piece of pieces) {
+    for (const cell of piece.cells) {
+      if (covered.has(cell)) return fail(`${posLabel(cell, puzzle.size)} is in more than one part`);
+      covered.add(cell);
+    }
+  }
+  const sourceName = factName(whole);
+  const listed = (cells: number[]) => cells.map(cell => posLabel(cell, puzzle.size)).join(' ');
+  const missing = whole.cells.filter(cell => !covered.has(cell));
+  if (missing.length > 0) {
+    return fail(`the parts do not cover ${sourceName}: ${listed(missing)} ${missing.length === 1 ? 'is' : 'are'} missing`);
+  }
+  const wholeCells = new Set(whole.cells);
+  const outside = [...covered].filter(cell => !wholeCells.has(cell)).sort((a, b) => a - b);
+  if (outside.length > 0) {
+    return fail(`the parts do not cover ${sourceName}: ${listed(outside)} ${outside.length === 1 ? 'is' : 'are'} not in it`);
+  }
+  const total = pieces.reduce((sum, piece) => sum + piece.target, 0);
+  if (total !== whole.target) return fail(`the parts total ${total} but ${sourceName} needs ${whole.target}`);
+
+  const prefix = name || whole.id;
+  const labelPrefix = name || sourceName;
+  const results = pieces.map((piece, index) => ({
+    id: `${prefix}-${index + 1}`,
+    label: `${labelPrefix}-${index + 1}`,
+    cells: [...piece.cells],
+    target: piece.target,
+  }));
+  for (const result of results) {
+    if (s.facts.some(fact => fact.id === result.id)) return fail(`${result.id} is already defined`);
+  }
+  dropTemporaries();
+  for (const result of results) {
+    s.facts.push({
+      id: result.id, kind: 'derived', index: 0, label: result.label,
+      op: '=', cells: result.cells, target: result.target, impossible: false,
+    });
+  }
+  normalize(s);
+  return {
+    note: results.map(result => `${result.label}: ★{${listed(result.cells)}} = ${result.target}`).join('; '),
+  };
+}
+
 function applyHypExpression(
   s: PState,
   puzzle: Puzzle,
@@ -832,6 +926,11 @@ function evalSeq(
       }
       case 'addsum': {
         const r = applyAddsum(next, puzzle, b.addFactId, b.toFactId, b.toFactId);
+        error = r.error; note = r.note;
+        break;
+      }
+      case 'split': {
+        const r = applySplit(next, puzzle, b.id, b.name, b.expr, b.parts);
         error = r.error; note = r.note;
         break;
       }

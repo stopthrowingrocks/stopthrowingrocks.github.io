@@ -29,6 +29,7 @@ function App() {
   const [renames, setRenames] = useState<Record<string, string>>({});
   const [editingFact, setEditingFact] = useState<string | null>(null);
   const workspaceRef = useRef<ProofWorkspaceHandle>(null);
+  const clearContextRef = useRef<() => void>(() => {});
 
   const puzzle: Puzzle = groups[category][1][level];
   const evaluation = useMemo(() => evaluate(puzzle, blocks), [puzzle, blocks]);
@@ -65,8 +66,19 @@ function App() {
     ? displayState.facts.filter(fact => fact.cells.some(cell => searchCells.includes(cell)))
     : displayState.facts;
 
-  // Clicking dead space scopes back to the end of the proof. Active board cells
-  // and fact rows stop their pointerdown from bubbling, so they never get here.
+  /** A click on neutral space drops the whole working context: search and scope. */
+  function clearContext() {
+    setSearchActive(false);
+    setSearchCells([]);
+    workspaceRef.current?.resetScope();
+  }
+  // The document listener below is installed once, so route through a ref to
+  // reach the current closure.
+  useEffect(() => { clearContextRef.current = clearContext; });
+
+  // Neutral space is anything that isn't interactive. Active board cells and
+  // fact rows stop their pointerdown from bubbling, so they never get here; the
+  // Blockly canvas is excluded and reports its own background clicks instead.
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Element)) return;
@@ -74,7 +86,7 @@ function App() {
         'button, select, input, textarea, a, .blockly-host, .zoom-controls, ' +
         '.blocklyWidgetDiv, .blocklyDropDownDiv, .blocklyTooltipDiv',
       )) return;
-      workspaceRef.current?.resetScope();
+      clearContextRef.current();
     };
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
@@ -275,6 +287,7 @@ function App() {
             results={evaluation.results}
             fallbackFacts={displayState.facts}
             factLabel={displayName}
+            onNeutralClick={clearContext}
             onChange={setBlocks}
             onSelection={(proofId, isPicking, cells, hypothesis, startedPicking) => {
               setSelectedId(proofId);

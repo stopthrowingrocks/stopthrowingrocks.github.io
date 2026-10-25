@@ -13,6 +13,7 @@ import { cellLabelToIndex, posLabel } from './puzzles';
  *               | (clear <fact>) | (rename <fact> <string>)
  *               | (subsum <fact:from> <fact:sub>) | (addsum <fact:to> <fact:add>)
  *               | (define <name> <hyp>) | (replace <fact> <hyp>)
+ *               | (split <hyp> <name|_> <hyp>*)
  *               | (argument <stmt>*)
  *               | (claim <bool> <stmt>*)
  *               | (by-contradiction (body <stmt>*) (via <hyp>))
@@ -50,6 +51,12 @@ Statements (a proof is zero or more of these, one after another):
   (define <name> <hyp>)            bind a name to a hypothesis expression
                                     (redefining a name replaces the earlier fact)
   (replace <fact> <hyp>)           overwrite a fact with a recomputed hypothesis
+  (split <hyp> <name|_> <hyp>*)    prove each part of a partition is exactly tight: the
+                                    parts must be disjoint, cover <hyp> exactly, and their
+                                    upper bounds must total its count. Results are named
+                                    <name>-1, <name>-2, ... — or after <hyp> itself when
+                                    the name is _. <hyp> must be an = or >= count; each
+                                    part must be an = or <= count
   (argument <stmt>*)               a no-op grouping of statements
   (claim <bool> <stmt>*)           prove a predicate; body proves it directly,
                                     or via nested by-contradiction/constructor/by-cases
@@ -228,6 +235,11 @@ function printBlockCore(b: Block, puzzle: Puzzle, results?: Results): Sx {
     case 'addsum': return tagged('addsum', [printFactRef(b.toFactId), printFactRef(b.addFactId)]);
     case 'define': return tagged('define', [atom(printAtomOrString(b.name)), printHyp(b.expr, puzzle)]);
     case 'replace': return tagged('replace', [printFactRef(b.targetFactId), printHyp(b.expr, puzzle)]);
+    case 'split': return tagged('split', [
+      printHyp(b.expr, puzzle),
+      b.name ? atom(printAtomOrString(b.name)) : atom('_'),
+      ...b.parts.map(part => printHyp(part, puzzle)),
+    ]);
     case 'argument': {
       const body = b.body.map(child => printBlock(child, puzzle, results));
       return tagged('argument', body);
@@ -441,6 +453,16 @@ function parseStmt(sx: Sx, puzzle: Puzzle): Block {
       targetFactId: parseFactRef(items[1]),
       expr: parseHyp(items[2], puzzle),
     };
+    case 'split': {
+      const name = expectAtom(items[2], 'a name for the parts, or _ to name them after the hypothesis');
+      return {
+        id, type: 'split',
+        expr: parseHyp(items[1], puzzle),
+        name: name === '_' ? '' : name,
+        // An unfilled part socket prints as `_`; the block itself always keeps one spare.
+        parts: items.slice(3).map(part => parseHyp(part, puzzle)).filter(part => part !== null),
+      };
+    }
     case 'argument': {
       const body = items.slice(1).map(s => parseStmt(s, puzzle));
       return { id, type: 'argument', body };

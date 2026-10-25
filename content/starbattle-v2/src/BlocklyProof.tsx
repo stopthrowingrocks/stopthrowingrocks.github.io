@@ -27,6 +27,12 @@ const PROOF_UPDATE_DELAY_MS = 40;
 const AUTOSAVE_DELAY_MS = 300;
 /** Blocks that, while selected, turn board clicks into cell picks for themselves. */
 const CELL_PICKING_TYPES = new Set(['sb_clique', 'sb_at_least_zero', 'sb_at_most', 'sb_bound', 'sb_count', 'sb_is_star', 'sb_is_elim']);
+/** Changes that can fill or empty a part socket. */
+const PART_EVENT_TYPES = new Set<string>([
+  Blockly.Events.BLOCK_MOVE,
+  Blockly.Events.BLOCK_CREATE,
+  Blockly.Events.BLOCK_DELETE,
+]);
 const PROOF_EVENT_TYPES = new Set<string>([
   Blockly.Events.BLOCK_CREATE,
   Blockly.Events.BLOCK_DELETE,
@@ -130,6 +136,83 @@ function factOptions(this: Blockly.FieldDropdown): Blockly.MenuOption[] {
 function cellOptions(this: Blockly.FieldDropdown): Blockly.MenuOption[] {
   const size = context?.puzzle.size ?? 1;
   return Array.from({ length: size * size }, (_, index) => [posLabel(index, size), String(index)]);
+}
+
+const SPLIT_PART_CHECK = ['Hypothesis', 'HypothesisExpression'];
+
+/**
+ * `split` takes however many parts the proof needs, so its part sockets grow and shrink
+ * with use: filling the last one adds a spare, and emptying one closes the gap, leaving
+ * exactly one spare at the end. The socket count is saved with the block, since Blockly
+ * reconnects a saved child only to an input that already exists.
+ */
+function defineSplitBlock(type: string, named: boolean): void {
+  Blockly.Blocks[type] = {
+    init() {
+      this.appendValueInput('FACT').setCheck(SPLIT_PART_CHECK).appendField('split');
+      if (named) this.appendDummyInput().appendField('as').appendField(new Blockly.FieldTextInput('part'), 'NAME');
+      this.appendDummyInput().appendField('into');
+      this.appendValueInput('PART0').setCheck(SPLIT_PART_CHECK);
+      this.setPreviousStatement(true, 'Proof');
+      this.setNextStatement(true, 'Proof');
+      this.setColour(112);
+      this.setTooltip(
+        'Prove each part is exactly tight: the parts must be disjoint, cover the hypothesis, ' +
+        'and their bounds must total its count',
+      );
+    },
+
+    partInputs() {
+      return this.inputList.filter((input: Blockly.Input) => input.name?.startsWith('PART'));
+    },
+
+    setPartCount(count: number) {
+      const current = this.partInputs().length;
+      for (let index = current; index < count; index++) {
+        this.appendValueInput(`PART${index}`).setCheck(SPLIT_PART_CHECK);
+      }
+      for (let index = current - 1; index >= count; index--) this.removeInput(`PART${index}`, true);
+    },
+
+    saveExtraState() {
+      return { parts: this.partInputs().length };
+    },
+
+    loadExtraState(state: { parts?: number } | null) {
+      this.setPartCount(Math.max(1, state?.parts ?? 1));
+    },
+
+    /** Compact the filled sockets to the front and leave exactly one spare at the end. */
+    reconcileParts(group?: string) {
+      if (this.reconcilingParts) return;
+      const targets: (Blockly.Block | null)[] = this.partInputs()
+        .map((input: Blockly.Input) => input.connection?.targetBlock() ?? null);
+      const filled = targets.filter((block): block is Blockly.Block => block !== null);
+      const canonical = targets.length === filled.length + 1
+        && targets.every((block, index) => (index < filled.length ? block !== null : block === null));
+      if (canonical) return;
+      this.reconcilingParts = true;
+      const previousGroup = Blockly.Events.getGroup();
+      Blockly.Events.setGroup(group || previousGroup || true);
+      try {
+        for (const block of filled) block.outputConnection?.disconnect();
+        this.setPartCount(filled.length + 1);
+        filled.forEach((block, index) => {
+          const connection = this.getInput(`PART${index}`)?.connection;
+          if (block.outputConnection) connection?.connect(block.outputConnection);
+        });
+      } finally {
+        Blockly.Events.setGroup(previousGroup);
+        this.reconcilingParts = false;
+      }
+    },
+
+    onchange(event: Blockly.Events.Abstract) {
+      if (!this.workspace || this.workspace.isDragging() || this.isInFlyout) return;
+      if (!PART_EVENT_TYPES.has(event.type)) return;
+      this.reconcileParts(event.group);
+    },
+  };
 }
 
 let registered = false;
@@ -259,11 +342,11 @@ function registerBlocks() {
   };
   Blockly.Blocks.sb_clique = {
     init() {
-      this.appendDummyInput().appendField('at most one ★ in').appendField(new Blockly.FieldTextInput('pick cells'), 'CELLS');
+      this.appendDummyInput().appendField('adj').appendField(new Blockly.FieldTextInput('pick cells'), 'CELLS');
       this.setOutput(true, 'HypothesisExpression');
       this.setOutputShape(HYPOTHESIS_OUTPUT_SHAPE);
       this.setColour(326);
-      this.setTooltip('Select this block, then click a pairwise-touching set of board cells');
+      this.setTooltip('At most one ★ among pairwise-touching cells. Select this block, then click a pairwise-touching set of board cells');
     },
   };
   Blockly.Blocks.sb_at_least_zero = {
@@ -299,6 +382,9 @@ function registerBlocks() {
       this.setTooltip('Assert a bound directly, for bounds the preset blocks do not cover');
     },
   };
+  defineSplitBlock('sb_split', false);
+  defineSplitBlock('sb_split_as', true);
+
   Blockly.Blocks.sb_argument = {
     init() {
       this.appendDummyInput().appendField('argument');
@@ -427,6 +513,8 @@ function makeToolbox(facts: Fact[]): Blockly.utils.toolbox.ToolboxDefinition {
     { kind: 'block', type: 'sb_fact_difference' },
     { kind: 'block', type: 'sb_fact_sum' },
     { kind: 'block', type: 'sb_addsum' },
+    { kind: 'block', type: 'sb_split' },
+    { kind: 'block', type: 'sb_split_as' },
     { kind: 'block', type: 'sb_combine' },
     { kind: 'block', type: 'sb_clique' },
     { kind: 'block', type: 'sb_at_least_zero' },
@@ -555,6 +643,22 @@ function proofBlock(block: Blockly.Block, puzzle: Puzzle): Block | null {
     case 'sb_define': return { id: block.id, type: 'define', name: block.getFieldValue('NAME'), expr: factExpression(block.getInputTargetBlock('VALUE'), puzzle) };
     case 'sb_replace': return { id: block.id, type: 'replace', targetFactId: factInput(block, 'TARGET'), expr: factExpression(block.getInputTargetBlock('VALUE'), puzzle) };
     case 'sb_addsum': return { id: block.id, type: 'addsum', addFactId: factInput(block, 'ADD'), toFactId: factInput(block, 'TO') };
+    case 'sb_split':
+    case 'sb_split_as': {
+      const parts: HypExpr[] = [];
+      for (const input of block.inputList) {
+        if (!input.name?.startsWith('PART')) continue;
+        const part = factExpression(input.connection?.targetBlock() ?? null, puzzle);
+        if (part) parts.push(part);
+      }
+      return {
+        id: block.id,
+        type: 'split',
+        name: block.type === 'sb_split_as' ? block.getFieldValue('NAME') : '',
+        expr: factExpression(block.getInputTargetBlock('FACT'), puzzle),
+        parts,
+      };
+    }
     case 'sb_argument': return { id: block.id, type: 'argument', body: proofSequence(block.getInputTargetBlock('BODY'), puzzle) };
     case 'sb_claim': return {
       id: block.id,
@@ -777,6 +881,14 @@ function buildStmt(workspace: Blockly.WorkspaceSvg, b: Block, puzzle: Puzzle): B
       connectValue(block, 'ADD', buildFactRef(workspace, b.addFactId));
       return block;
     }
+    case 'split': {
+      const block = newBuiltBlock(workspace, b.name ? 'sb_split_as' : 'sb_split');
+      if (b.name) block.setFieldValue(b.name, 'NAME');
+      connectValue(block, 'FACT', buildHyp(workspace, b.expr, puzzle));
+      (block as Blockly.Block & { setPartCount(count: number): void }).setPartCount(b.parts.length + 1);
+      b.parts.forEach((part, index) => connectValue(block, `PART${index}`, buildHyp(workspace, part, puzzle)));
+      return block;
+    }
     case 'define': {
       const block = newBuiltBlock(workspace, 'sb_define');
       block.setFieldValue(b.name || 'hyp', 'NAME');
@@ -853,12 +965,14 @@ export interface ProofWorkspaceHandle {
 
 interface ProofWorkspaceProps extends BlocklyContext {
   onChange: (blocks: Block[]) => void;
+  /** A click on the workspace background — neutral space inside the editor. */
+  onNeutralClick: () => void;
   /** `startedPicking` is true only when the user has just selected a pick-cells block. */
   onSelection: (proofId: string | null, picking: boolean, cells: number[], hypothesis: HypExpr | null, startedPicking: boolean) => void;
 }
 
 export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps>(function BlocklyProof({
-  puzzle, results, fallbackFacts, factLabel, onChange, onSelection,
+  puzzle, results, fallbackFacts, factLabel, onChange, onSelection, onNeutralClick,
 }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const zoomControlsRef = useRef<HTMLDivElement>(null);
@@ -869,8 +983,8 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
   const toolboxFactsRef = useRef(fallbackFacts);
   const warningTextRef = useRef(new Map<string, string | null>());
   const factTextRef = useRef(new WeakMap<Blockly.FieldDropdown, string>());
-  const callbacksRef = useRef({ onChange, onSelection });
-  callbacksRef.current = { onChange, onSelection };
+  const callbacksRef = useRef({ onChange, onSelection, onNeutralClick });
+  callbacksRef.current = { onChange, onSelection, onNeutralClick };
   toolboxFactsRef.current = fallbackFacts;
   context = { puzzle, results, fallbackFacts, factLabel };
   const toolboxFactsKey = fallbackFacts.map(fact => `${fact.id}:${factLabel(fact)}`).join('|');
@@ -1162,8 +1276,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
         pendingScope = null;
       } else if (event.type === Blockly.Events.CLICK && (event as Blockly.Events.Click).targetType === 'workspace') {
         pendingScope = null;
-        proofContextRef.current = null;
-        reportSelection(null);
+        callbacksRef.current.onNeutralClick();
       }
     };
     // While a define's name is cleared mid-edit, its references stay on the
