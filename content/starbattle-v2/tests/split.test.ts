@@ -149,3 +149,50 @@ test('split references survive blocks getting new ids', () => {
   assert.deepEqual(outcomes(blocks), ['ok', 'ok']);
   assert.deepEqual(outcomes(relabelled), outcomes(blocks));
 });
+
+test('adj accepts a single cell', () => {
+  const { outcomes, final } = run(EXACT, '(define x (clique E10))');
+  assert.equal(outcomes[0], 'ok: at most one ★ among E10');
+  assert.equal(shape(fact(final, 'x')), '<= 1 over 1 cells');
+});
+
+test('a single-cell adj carries through a subsum and a split', () => {
+  // region10 is C10 D10 E10 F10 F11 G11 with 3 stars; dropping the lone cell G11
+  // leaves at least 2 among the rest, which splits into a pair and a triple.
+  const { outcomes, final } = run(LOWER, [
+    '(define m (- region10 (clique G11)))',
+    '(split m _ (clique C10 D10) (clique E10 F10 F11))',
+  ].join('\n'));
+  assert.equal(outcomes[0].startsWith('ok'), true, outcomes[0]);
+  assert.equal(outcomes[1].startsWith('ok'), true, outcomes[1]);
+  assert.equal(shape(fact(final, 'm-1')), '= 1 over 2 cells');
+  assert.equal(shape(fact(final, 'm-2')), '= 1 over 3 cells');
+});
+
+test('adj still needs at least one cell', () => {
+  assert.equal(last(EXACT, '(define x (clique))'), 'error: pick at least one cell on the board');
+});
+
+/** 10x10 2★ #1: region3 is the T tetromino I1 J1 J2 J3; region4 is C2 C3 D3 C4 D4 E3. */
+const TETROMINO: Puzzle = puzzles[250];
+
+test('a T tetromino splits into an L and a lone cell', () => {
+  const { outcomes, final } = run(TETROMINO, '(split region3 _ (clique I1 J1 J2) (clique J3))');
+  assert.equal(outcomes[0].startsWith('ok'), true, outcomes[0]);
+  assert.equal(shape(fact(final, 'region3-1')), '= 1 over 3 cells');
+  assert.equal(shape(fact(final, 'region3-2')), '= 1 over 1 cells');
+});
+
+test('a region becomes splittable once the board evolves', () => {
+  // region4 has no partition into two cliques as it stands. Inside a by-contradiction,
+  // the assumed elimination of C2 normalizes it to one that does.
+  const blocks = parseProof(
+    '(claim (is-star C2) (by-contradiction (body (split region4 _ (clique C3 D3 C4 D4) (clique E3))) (via _)))',
+    TETROMINO);
+  const { results } = evaluate(TETROMINO, blocks);
+  const claim = blocks[0] as Extract<Block, { type: 'claim' }>;
+  const contra = claim.body[0] as Extract<Block, { type: 'by_contradiction' }>;
+  const split = results.get(contra.body[0].id) as BlockResult;
+  assert.equal(split.status, 'ok', split.error);
+  assert.equal(shape(split.state.facts.find(f => f.id === 'region4-2')), '= 1 over 1 cells');
+});

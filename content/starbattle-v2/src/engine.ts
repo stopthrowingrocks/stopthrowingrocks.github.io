@@ -413,7 +413,7 @@ function applyClique(
   replaceFactId: string | null = null,
 ): { error?: string; note?: string } {
   const N = puzzle.size;
-  if (cells.length < 2) return { error: 'pick at least two cells on the board' };
+  if (cells.length < 1) return { error: 'pick at least one cell on the board' };
   for (let i = 0; i < cells.length; i++) {
     for (let j = i + 1; j < cells.length; j++) {
       if (!neighbors(cells[i], N).includes(cells[j])) {
@@ -425,11 +425,23 @@ function applyClique(
   if (s.facts.some(f => f.id === resultId && f.id !== replaceFactId)) return { error: 'that hypothesis is already defined' };
   const labels = sorted.map(c => posLabel(c, N)).join(' ');
   if (replaceFactId) s.facts = s.facts.filter(fact => fact.id !== replaceFactId);
+  // Fold the resolved cells out of this one fact rather than running the
+  // pool-wide `normalize`: over a single cell `≤ 1` says nothing the rules do
+  // not already, and the pool-wide pass discards it before a `split` can use it
+  // as a part. A later pass retires it once it has served its purpose.
+  let target = 1;
+  const remaining: number[] = [];
+  for (const cell of sorted) {
+    const known = s.cells[cell];
+    if (known === 'star') target--;
+    else if (known === null) remaining.push(cell);
+  }
+  const impossible = target < 0;
+  if (impossible) s.contradiction = true;
   s.facts.push({
     id: resultId, kind: 'derived', index: 0, label: resultLabel,
-    op: '<=', cells: sorted, target: 1, impossible: false,
+    op: '<=', cells: remaining, target, impossible,
   });
-  normalize(s);
   return { note: `at most one ★ among ${labels}` };
 }
 
@@ -458,21 +470,19 @@ function applySplit(
   if (!name && expr.kind !== 'ref') return fail('give this split a name with "as"');
   if (parts.length < 2) return fail('add at least two parts');
 
-  const partIds: string[] = [];
+  // Copy each fact as it is evaluated. Later parts normalize the pool, which retires
+  // any part that was trivially true, and a `combine` part consumes what it merges.
+  const copy = (id: string | undefined): Fact | undefined => {
+    const found = id ? s.facts.find(fact => fact.id === id) : undefined;
+    return found && { ...found, cells: [...found.cells] };
+  };
+  const whole = copy(source.factId);
+  if (!whole) return fail('that hypothesis is not available here');
+  const pieces: Fact[] = [];
   for (const [index, part] of parts.entries()) {
     const result = applyHypExpression(s, puzzle, part, `${temporary}${index}`, `part ${index + 1}`);
     if (result.error) return fail(result.error);
-    if (!result.factId) return fail('that hypothesis is not available here');
-    partIds.push(result.factId);
-  }
-
-  // Re-read every fact now that the parts have been evaluated: normalization rebuilds
-  // the pool, and a `combine` part consumes the hypotheses it merges.
-  const whole = s.facts.find(fact => fact.id === source.factId);
-  if (!whole) return fail('that hypothesis is not available here');
-  const pieces: Fact[] = [];
-  for (const id of partIds) {
-    const piece = s.facts.find(fact => fact.id === id);
+    const piece = copy(result.factId);
     if (!piece) return fail('that hypothesis is not available here');
     pieces.push(piece);
   }
