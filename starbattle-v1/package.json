@@ -1,0 +1,14 @@
+{
+  "name": "starbattle-v1",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --outfile=build.js",
+    "watch": "esbuild src/main.ts --bundle --outfile=build.js --watch",
+    "scrape": "node scripts/scrape.js"
+  },
+  "author": "Marcus Luebke",
+  "license": "GPLv3",
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "playwright": "^1.48.0"
+  }
+}
