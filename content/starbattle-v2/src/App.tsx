@@ -238,6 +238,11 @@ function App() {
         <button className="hdr-btn" onClick={() => workspaceRef.current?.pasteProof().catch(error => window.alert(error.message))}>paste proof</button>
         <button className="hdr-btn" onClick={() => workspaceRef.current?.copyProofText().catch(error => window.alert(error.message))}>copy as text</button>
         <button className="hdr-btn" onClick={() => workspaceRef.current?.pasteProofText().catch(error => window.alert(error.message))}>load from text</button>
+        <button
+          className="hdr-btn"
+          title="Add proof text from the clipboard after the selected step, keeping the rest"
+          onClick={() => workspaceRef.current?.insertProofText().catch(error => window.alert(error.message))}
+        >insert from text</button>
         <span className="header-help">Drag proof blocks together. Select a cell-set block, then click the board.</span>
       </section>
 

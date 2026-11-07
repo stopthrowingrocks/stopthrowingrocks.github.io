@@ -215,6 +215,32 @@ function defineSplitBlock(type: string, named: boolean): void {
   };
 }
 
+let contextMenuRegistered = false;
+
+/**
+ * Adds "Copy as text" to a statement's context menu. Only statements are offered, because
+ * only a statement is valid proof text on its own — a bare hypothesis block would copy to
+ * something `parseProof` cannot read back.
+ */
+function registerContextMenu(): void {
+  if (contextMenuRegistered) return;
+  contextMenuRegistered = true;
+  Blockly.ContextMenuRegistry.registry.register({
+    id: 'sb_copy_as_text',
+    scopeType: Blockly.ContextMenuRegistry.ScopeType.BLOCK,
+    weight: 2,
+    displayText: 'Copy as text',
+    preconditionFn: scope =>
+      scope.block && context && proofBlock(scope.block, context.puzzle) ? 'enabled' : 'hidden',
+    callback: scope => {
+      if (!scope.block || !context) return;
+      const parsed = proofBlock(scope.block, context.puzzle);
+      if (!parsed) return;
+      void navigator.clipboard.writeText(`${printProof([parsed], context.puzzle)}\n`);
+    },
+  });
+}
+
 let registered = false;
 
 function registerBlocks() {
@@ -970,6 +996,8 @@ export interface ProofWorkspaceHandle {
   copyProofText: () => Promise<void>;
   /** Parse lispy proof text from the clipboard and replace the workspace with it. */
   pasteProofText: () => Promise<void>;
+  /** Parse lispy proof text and splice it into the proof without disturbing the rest. */
+  insertProofText: () => Promise<void>;
   /** End cell picking: forget a selected pick-cells block, keeping its proof step as context. */
   stopPicking: () => void;
   /** Scope back to the end of the proof (a click on dead space). */
@@ -1104,6 +1132,43 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
       }
       loadWorkspace(workspace, saved);
     },
+    /**
+     * Splice a fragment in after the scoped step, or onto the end of the proof when
+     * nothing is scoped. Unlike `pasteProofText` this keeps what is already there, which
+     * is what makes a fragment from someone else usable.
+     */
+    async insertProofText() {
+      const workspace = workspaceRef.current;
+      if (!workspace) return;
+      const text = await navigator.clipboard.readText();
+      const parsed = parseProof(text, puzzle);
+      if (parsed.length === 0) throw new Error('That text contains no proof statements.');
+
+      const start = workspace.getTopBlocks(false).find(block => block.type === 'sb_start');
+      if (!start) throw new Error('This workspace has no proof to insert into.');
+      // After the scoped step when it is part of the proof, otherwise at the end.
+      let anchor: Blockly.Block = start;
+      const scoped = proofContextRef.current;
+      if (scoped && !scoped.disposed && scoped.getRootBlock().type === 'sb_start') anchor = scoped;
+      else while (anchor.getNextBlock()) anchor = anchor.getNextBlock()!;
+
+      const group = Blockly.utils.idGenerator.genUid();
+      Blockly.Events.setGroup(group);
+      try {
+        const first = buildSequence(workspace, parsed, puzzle);
+        if (!first) return;
+        let last = first;
+        while (last.getNextBlock()) last = last.getNextBlock()!;
+        const following = anchor.getNextBlock();
+        if (following?.previousConnection) following.previousConnection.disconnect();
+        anchor.nextConnection?.connect(first.previousConnection!);
+        if (following?.previousConnection) last.nextConnection?.connect(following.previousConnection);
+      } finally {
+        Blockly.Events.setGroup(false);
+      }
+      callbacksRef.current.onChange(workspaceProof(workspace, puzzle));
+      saveWorkspace(workspace);
+    },
     async copyProofText() {
       const workspace = workspaceRef.current;
       if (!workspace) return;
@@ -1182,6 +1247,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
 
   useLayoutEffect(() => {
     registerBlocks();
+    registerContextMenu();
     if (!hostRef.current) return;
     const workspace = Blockly.inject(hostRef.current, {
       toolbox: makeToolbox(initialFactsRef.current),
