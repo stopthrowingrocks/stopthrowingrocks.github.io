@@ -328,6 +328,85 @@ export const boardAdvancingMoves: MoveGenerator = (puzzle, state, options) => {
 };
 
 /**
+ * Every partition of `cells` into exactly `parts` king-cliques.
+ *
+ * In such a partition each part holds exactly one star — there are `parts` stars to place
+ * and no clique can hold two — which is what makes the decomposition worth so much: a fact
+ * permitting C(n, k) placements becomes k facts permitting a handful each.
+ */
+export function cliqueTilings(puzzle: Puzzle, cells: number[], parts: number): number[][][] {
+  const key = `${puzzle.size}|${parts}|${cells.join(',')}`;
+  const cached = tilingCache.get(key);
+  if (cached) return cached;
+  const found: number[][][] = [];
+  const touch = (a: number, b: number) => neighbors(a, puzzle.size).includes(b);
+  const search = (left: number[], acc: number[][]) => {
+    if (left.length === 0) {
+      if (acc.length === parts) found.push(acc.map(p => [...p]));
+      return;
+    }
+    if (acc.length >= parts) return;
+    const [head, ...rest] = left;
+    const near = rest.filter(c => touch(head, c));
+    for (let mask = 0; mask < (1 << near.length); mask++) {
+      const extra = near.filter((_, i) => mask & (1 << i));
+      if (!extra.every((a, i) => extra.slice(i + 1).every(b => touch(a, b)))) continue;
+      search(rest.filter(c => !extra.includes(c)), [...acc, [head, ...extra]]);
+    }
+  };
+  if (cells.length <= 20) search(cells, []);
+  tilingCache.set(key, found);
+  return found;
+}
+const tilingCache = new Map<string, number[][][]>();
+
+/** Smallest parts first: a 1-cell part is a star outright, a 2-cell part is nearly one. */
+const tilingRank = (tiling: number[][]): string =>
+  tiling.map(p => p.length).sort((a, b) => a - b).join(',');
+
+/**
+ * Decompose a count into its parts, which is the one move that makes the proof state
+ * simpler rather than larger. A fact of k stars over n cells permits C(n, k) placements;
+ * tiled into k cliques it becomes k facts of one star each over a handful of cells.
+ *
+ * Unlike every other generator here these settle no cells at all, so they are invisible to
+ * the "did it resolve something" test the others are pruned by. They pay off later, often
+ * much later — in a hand proof, parts of one early split were still being used eighty
+ * statements on.
+ *
+ * Only the best tiling per fact is offered. Where several exist they tend to cascade the
+ * same way, and preferring the smallest parts picks the same decomposition a person does.
+ */
+export const splitMoves: MoveGenerator = (puzzle, state) => {
+  const moves: Move[] = [];
+  for (const fact of state.facts) {
+    // Splitting needs an exact count or a lower bound, and at least two parts to be worth it.
+    if (fact.op !== '=' && fact.op !== '>=') continue;
+    if (fact.target < 2 || fact.cells.length <= fact.target) continue;
+    const tilings = cliqueTilings(puzzle, fact.cells, fact.target);
+    if (tilings.length === 0) continue;
+    const best = tilings.reduce((a, b) => (tilingRank(a) <= tilingRank(b) ? a : b));
+
+    const block: Block = {
+      id: blockId(),
+      type: 'split',
+      name: '',
+      expr: { eid: exprId(), kind: 'ref', factId: fact.id },
+      parts: best.map(cells => ({ eid: exprId(), kind: 'clique', cells: [...cells] })),
+    };
+    const step = applyStep(puzzle, state, block);
+    if (step.status !== 'ok') continue;
+    moves.push({
+      block, cost: statementCost(block), state: step.state,
+      signature: `split|${fact.op}${fact.target}:${fact.cells.join(',')}`,
+      reads: new Set(fact.cells),
+      writes: new Set(),
+    });
+  }
+  return moves;
+};
+
+/**
  * Statements that need no derivation: a fact whose count already settles every cell it
  * covers. This is a small fraction of what `boardAdvancingMoves` considers, which is what
  * makes it the right generator for exploring inside an assumption, where the question is
@@ -537,7 +616,7 @@ class Frontier<T> {
  */
 export function search(puzzle: Puzzle, state: PState, options: SearchOptions = {}): SearchResult {
   const goal = options.goal ?? isSolved;
-  const generators = options.generators ?? [boardAdvancingMoves, contradictionMoves];
+  const generators = options.generators ?? [boardAdvancingMoves, splitMoves, contradictionMoves];
   const maxNodes = options.maxNodes ?? 20000;
   const timeLimitMs = options.timeLimitMs ?? 20000;
   const started = Date.now();
