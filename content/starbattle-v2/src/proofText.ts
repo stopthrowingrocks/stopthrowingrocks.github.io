@@ -185,7 +185,7 @@ function printCell(cell: number, puzzle: Puzzle): Sx {
   return { t: 'atom', v: posLabel(cell, puzzle.size), line: 0 };
 }
 
-function printHyp(e: HypExpr | null, puzzle: Puzzle): Sx {
+export function printHyp(e: HypExpr | null, puzzle: Puzzle): Sx {
   if (!e) return { t: 'atom', v: '_', line: 0 };
   if (e.kind === 'ref') return printFactRef(e.factId);
   if (e.kind === 'clique') return { t: 'list', v: [atom('clique'), ...e.cells.map(c => printCell(c, puzzle))], line: 0 };
@@ -316,6 +316,11 @@ function layout(sx: Sx, indent: number, statementBody: boolean): string {
  * annotated text is still valid input to `parseProof` (comments are ignored),
  * so it doubles as feedback an agent can read, edit, and resubmit directly.
  */
+/** One hypothesis expression as text, for putting a selected block on the clipboard. */
+export function printHypothesis(expr: HypExpr | null, puzzle: Puzzle): string {
+  return sxToText(printHyp(expr, puzzle));
+}
+
 export function printProof(blocks: Block[], puzzle: Puzzle, results?: Results): string {
   return blocks.map(b => layout(printBlock(b, puzzle, results), 0, true)).join('\n\n');
 }

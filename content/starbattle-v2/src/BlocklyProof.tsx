@@ -9,7 +9,7 @@ import {
 import * as Blockly from 'blockly';
 import type { Block, BlockResult, BoolExpr, Fact, HypExpr, NumExpr, Puzzle } from './types';
 import { posLabel } from './puzzles';
-import { printProof, parseProof } from './proofText';
+import { printHypothesis, printProof, parseProof } from './proofText';
 import { legacyFactIds } from './engine';
 
 interface BlocklyContext {
@@ -239,6 +239,101 @@ function registerContextMenu(): void {
       void navigator.clipboard.writeText(`${printProof([parsed], context.puzzle)}\n`);
     },
   });
+}
+
+let clipboardShortcutsRegistered = false;
+
+/**
+ * Make Ctrl+C put the selection on the system clipboard as proof text.
+ *
+ * Blockly's copy stores a serialized block in its own clipboard, which pastes faithfully
+ * inside the workspace but cannot be sent to anyone. This keeps that behaviour and adds the
+ * text, so a statement can be copied straight into a message — and, with the paste
+ * shortcut, copied back out of one.
+ *
+ * A hypothesis block is not a statement and will not parse back as a proof, so copying one
+ * writes the expression for a reader's benefit and leaves Ctrl+V to Blockly, which
+ * duplicates the block as it always did.
+ */
+function registerCopyText(): void {
+  const registry = Blockly.ShortcutRegistry.registry;
+  const blockCopy = registry.getRegistry()[Blockly.ShortcutItems.names.COPY];
+  registry.unregister(Blockly.ShortcutItems.names.COPY);
+  const key = (modifier: number) =>
+    registry.createSerializedKey(Blockly.utils.KeyCodes.C, [modifier]);
+
+  registry.register({
+    name: 'sb_copy_proof_text',
+    preconditionFn: workspace => !workspace.isDragging() && !Blockly.WidgetDiv.isVisible(),
+    callback: (workspace, event, shortcut, scope) => {
+      const copied = blockCopy?.callback?.(workspace, event, shortcut, scope) ?? false;
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return copied;
+      const current = clipboardContext;
+      const selected = Blockly.common.getSelected();
+      if (current && selected instanceof Blockly.BlockSvg) {
+        const statement = proofBlock(selected, current.puzzle);
+        const text = statement
+          ? printProof([statement], current.puzzle)
+          : printHypothesis(factExpression(selected, current.puzzle), current.puzzle);
+        void navigator.clipboard.writeText(`${text}\n`).catch(() => {});
+      }
+      return copied;
+    },
+    keyCodes: [key(Blockly.utils.KeyCodes.CTRL), key(Blockly.utils.KeyCodes.META)],
+  }, true);
+}
+
+/**
+ * Make Ctrl+V understand proof text.
+ *
+ * Blockly binds the key to its own clipboard, which holds blocks copied inside the
+ * workspace and knows nothing about the system one. So this takes the key, reads what is
+ * actually on the clipboard, and splices it in when it parses as a proof. Anything else —
+ * including a block copied in the workspace a moment ago — falls through to Blockly's
+ * handler untouched, by invoking the shortcut this one displaced.
+ */
+let clipboardContext: { puzzle: Puzzle; insert: (parsed: Block[]) => void } | null = null;
+
+function registerPasteText(): void {
+  if (clipboardShortcutsRegistered) return;
+  clipboardShortcutsRegistered = true;
+  registerCopyText();
+  const registry = Blockly.ShortcutRegistry.registry;
+  // Take the binding over rather than adding to it: the registry refuses two shortcuts on
+  // one key. The displaced handler is kept so non-proof text still pastes as blocks.
+  const blockPaste = registry.getRegistry()[Blockly.ShortcutItems.names.PASTE];
+  registry.unregister(Blockly.ShortcutItems.names.PASTE);
+  const key = (modifier: number) =>
+    registry.createSerializedKey(Blockly.utils.KeyCodes.V, [modifier]);
+
+  registry.register({
+    name: 'sb_paste_proof_text',
+    preconditionFn: workspace => !workspace.isDragging() && !Blockly.WidgetDiv.isVisible(),
+    callback: (workspace, event, shortcut, scope) => {
+      const fallback = () => { blockPaste?.callback?.(workspace, event, shortcut, scope); };
+      // The shortcut is registered once, but the board it should parse against changes
+      // whenever a puzzle is picked — so read both from the context, never from a closure.
+      const current = clipboardContext;
+      if (!current) return false;
+      // Typing into a field or one of the app's own inputs: leave the browser to it.
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return false;
+      void navigator.clipboard.readText().then(text => {
+        let parsed: Block[];
+        try {
+          parsed = parseProof(text, current.puzzle);
+        } catch {
+          fallback();
+          return;
+        }
+        if (parsed.length === 0) fallback();
+        else current.insert(parsed);
+      }).catch(fallback);
+      return true;
+    },
+    keyCodes: [key(Blockly.utils.KeyCodes.CTRL), key(Blockly.utils.KeyCodes.META)],
+  }, true);
 }
 
 let registered = false;
@@ -730,6 +825,31 @@ function workspaceProof(workspace: Blockly.WorkspaceSvg, puzzle: Puzzle): Block[
   return proofSequence(start?.getNextBlock() ?? null, puzzle);
 }
 
+/**
+ * Put a parsed fragment into the proof, after `anchor` or at the end, reconnecting
+ * whatever followed so the splice is one undoable step.
+ */
+function spliceAfter(
+  workspace: Blockly.WorkspaceSvg,
+  anchor: Blockly.Block,
+  parsed: Block[],
+  puzzle: Puzzle,
+): void {
+  Blockly.Events.setGroup(Blockly.utils.idGenerator.genUid());
+  try {
+    const first = buildSequence(workspace, parsed, puzzle);
+    if (!first) return;
+    let last = first;
+    while (last.getNextBlock()) last = last.getNextBlock()!;
+    const following = anchor.getNextBlock();
+    if (following?.previousConnection) following.previousConnection.disconnect();
+    anchor.nextConnection?.connect(first.previousConnection!);
+    if (following?.previousConnection) last.nextConnection?.connect(following.previousConnection);
+  } finally {
+    Blockly.Events.setGroup(false);
+  }
+}
+
 /** The proof statement a block belongs to (itself, for a statement block). */
 function enclosingStep(block: Blockly.Block | null): Blockly.Block | null {
   let step = block;
@@ -1063,6 +1183,30 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
     saveWorkspace(workspace);
   }, [addStartBlock, puzzle, saveWorkspace, storageKey]);
 
+  /** Splice a fragment after the scoped step, or at the end of the proof. */
+  const insertParsed = useCallback((workspace: Blockly.WorkspaceSvg, parsed: Block[]) => {
+    const start = workspace.getTopBlocks(false).find(block => block.type === 'sb_start');
+    if (!start) throw new Error('This workspace has no proof to insert into.');
+    let anchor: Blockly.Block = start;
+    const scoped = proofContextRef.current;
+    if (scoped && !scoped.disposed && scoped.getRootBlock().type === 'sb_start') anchor = scoped;
+    else while (anchor.getNextBlock()) anchor = anchor.getNextBlock()!;
+    spliceAfter(workspace, anchor, parsed, puzzle);
+    callbacksRef.current.onChange(workspaceProof(workspace, puzzle));
+    saveWorkspace(workspace);
+  }, [puzzle, saveWorkspace]);
+
+  useEffect(() => {
+    clipboardContext = {
+      puzzle,
+      insert: parsed => {
+        const workspace = workspaceRef.current;
+        if (workspace) insertParsed(workspace, parsed);
+      },
+    };
+    return () => { clipboardContext = null; };
+  }, [puzzle, insertParsed]);
+
   const reportSelection = useCallback((selected: Blockly.Block | null, fromSelectEvent = false) => {
     // Blockly clears its selection from a document-level pointer handler before
     // a board click or external hypothesis drag arrives. Keep the selected block
@@ -1140,34 +1284,9 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
     async insertProofText() {
       const workspace = workspaceRef.current;
       if (!workspace) return;
-      const text = await navigator.clipboard.readText();
-      const parsed = parseProof(text, puzzle);
+      const parsed = parseProof(await navigator.clipboard.readText(), puzzle);
       if (parsed.length === 0) throw new Error('That text contains no proof statements.');
-
-      const start = workspace.getTopBlocks(false).find(block => block.type === 'sb_start');
-      if (!start) throw new Error('This workspace has no proof to insert into.');
-      // After the scoped step when it is part of the proof, otherwise at the end.
-      let anchor: Blockly.Block = start;
-      const scoped = proofContextRef.current;
-      if (scoped && !scoped.disposed && scoped.getRootBlock().type === 'sb_start') anchor = scoped;
-      else while (anchor.getNextBlock()) anchor = anchor.getNextBlock()!;
-
-      const group = Blockly.utils.idGenerator.genUid();
-      Blockly.Events.setGroup(group);
-      try {
-        const first = buildSequence(workspace, parsed, puzzle);
-        if (!first) return;
-        let last = first;
-        while (last.getNextBlock()) last = last.getNextBlock()!;
-        const following = anchor.getNextBlock();
-        if (following?.previousConnection) following.previousConnection.disconnect();
-        anchor.nextConnection?.connect(first.previousConnection!);
-        if (following?.previousConnection) last.nextConnection?.connect(following.previousConnection);
-      } finally {
-        Blockly.Events.setGroup(false);
-      }
-      callbacksRef.current.onChange(workspaceProof(workspace, puzzle));
-      saveWorkspace(workspace);
+      insertParsed(workspace, parsed);
     },
     async copyProofText() {
       const workspace = workspaceRef.current;
@@ -1248,6 +1367,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
   useLayoutEffect(() => {
     registerBlocks();
     registerContextMenu();
+    registerPasteText();
     if (!hostRef.current) return;
     const workspace = Blockly.inject(hostRef.current, {
       toolbox: makeToolbox(initialFactsRef.current),
