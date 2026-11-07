@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Fact, HypExpr, PState, Puzzle } from './types';
+import type { Block, Fact, HypExpr, PState, Puzzle } from './types';
 import { parseLevels, groupPuzzles, factName, posLabel, REGION_COLORS } from './puzzles';
-import { evaluate, hypothesisForm, isSolved, opSymbol } from './engine';
-import { Board } from './Board';
+import { childContainers, evaluate, hypothesisForm, isSolved, opSymbol } from './engine';
+import { Board, type Coverage } from './Board';
 import { BlocklyProof, type ProofWorkspaceHandle } from './BlocklyProof';
 import levelsData from './levels.json';
 import './App.css';
@@ -12,6 +12,28 @@ const groups = groupPuzzles(allPuzzles);
 
 function factText(fact: Fact, size: number): string {
   return `★{${fact.cells.map(cell => posLabel(cell, size)).join(' ')}} ${opSymbol(fact.op)} ${fact.target}`;
+}
+
+/** A step anywhere in the proof, including inside claim bodies and case arms. */
+function findBlock(blocks: Block[], id: string): Block | undefined {
+  for (const block of blocks) {
+    if (block.id === id) return block;
+    for (const [, children] of childContainers(block)) {
+      const found = findBlock(children, id);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+/** Does this expression contain the node with `eid` — i.e. is it the part being edited? */
+function containsExpr(expr: HypExpr | null, eid: string): boolean {
+  if (!expr) return false;
+  if (expr.eid === eid) return true;
+  if (expr.kind === 'add' || expr.kind === 'sub' || expr.kind === 'combine') {
+    return containsExpr(expr.left, eid) || containsExpr(expr.right, eid);
+  }
+  return false;
 }
 
 function App() {
@@ -53,6 +75,55 @@ function App() {
   const selectedFact = selectedHypothesisForm && 'fact' in selectedHypothesisForm
     ? selectedHypothesisForm.fact
     : undefined;
+  const splitCoverage = useMemo<Coverage | null>(() => {
+    if (searchActive || !selectedId) return null;
+    const step = findBlock(blocks, selectedId);
+    if (step?.type !== 'split') return null;
+    const state = selected?.prev ?? displayState;
+    const whole = step.expr ? hypothesisForm(state, puzzle, step.expr) : { error: 'no hypothesis' };
+    if ('error' in whole) return null;
+
+    const counts = new Map<number, number>();
+    const editing = new Set<number>();
+    for (const part of step.parts) {
+      const form = hypothesisForm(state, puzzle, part);
+      const cells = 'fact' in form ? form.fact.cells : [];
+      for (const cell of cells) counts.set(cell, (counts.get(cell) ?? 0) + 1);
+      // The part being edited is the one holding the selected expression.
+      if (selectedHypothesis && containsExpr(part, selectedHypothesis.eid)) {
+        for (const cell of cells) editing.add(cell);
+      }
+    }
+    // Mid-pick a clique may not evaluate yet; show what has been clicked so far.
+    if (picking && pickedCells.length > 0) {
+      editing.clear();
+      for (const cell of pickedCells) editing.add(cell);
+    }
+    const wholeCells = new Set(whole.fact.cells);
+    const conflicting = new Set<number>();
+    const covered = new Set<number>();
+    for (const [cell, times] of counts) {
+      if (times > 1 || !wholeCells.has(cell)) conflicting.add(cell);
+      else covered.add(cell);
+    }
+    for (const cell of editing) {
+      if (!wholeCells.has(cell)) conflicting.add(cell);
+      covered.delete(cell);
+    }
+    const remaining = new Set([...wholeCells].filter(cell =>
+      !covered.has(cell) && !editing.has(cell) && !conflicting.has(cell)));
+    return { total: wholeCells.size, remaining, editing, covered, conflicting };
+  }, [blocks, selectedId, selected, displayState, puzzle, selectedHypothesis, searchActive, picking, pickedCells]);
+
+  const coverageNote = splitCoverage && (() => {
+    const { total, remaining, editing, covered, conflicting } = splitCoverage;
+    const accounted = covered.size + editing.size;
+    const trouble = conflicting.size > 0
+      ? ` — ${conflicting.size} cell${conflicting.size === 1 ? '' : 's'} counted twice or outside it`
+      : '';
+    return `${accounted} of ${total} cells accounted for, ${remaining.size} remaining${trouble}`;
+  })();
+
   const highlighted = searchActive
     ? new Set(searchCells)
     : pickedCells.length > 0
@@ -175,11 +246,14 @@ function App() {
           {evaluation.final.contradiction && !selected && <div className="banner contra">The proof state is contradictory.</div>}
           {searchActive
             ? <div className="pick-hint">Hypothesis search — click board cells to filter ({searchCells.length} selected)</div>
-            : picking && <div className="pick-hint">Cell picking active — click the board</div>}
+            : coverageNote
+              ? <div className="pick-hint">Split — {coverageNote}</div>
+              : picking && <div className="pick-hint">Cell picking active — click the board</div>}
           <Board
             puzzle={puzzle}
             cells={displayState.cells}
             highlight={highlighted}
+            coverage={splitCoverage}
             picking={picking || searchActive}
             onCell={
               searchActive ? cell => toggleSearchCell(cell)

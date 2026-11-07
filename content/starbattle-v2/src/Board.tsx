@@ -15,10 +15,28 @@ function ElimX() {
   );
 }
 
-export function Board({ puzzle, cells, highlight, picking, onCell }: {
+/**
+ * While a `split` is being built, the board says how far its parts have got: which cells of
+ * the hypothesis are still unaccounted for, which the other parts already cover, and which
+ * belong to the part being edited. Cells counted twice, or reaching outside the hypothesis,
+ * are called out too — the engine rejects those, and seeing where is faster than reading it.
+ */
+export interface Coverage {
+  /** How many cells the hypothesis covers, so the caption counts against a fixed total. */
+  total: number;
+  remaining: Set<number>;
+  editing: Set<number>;
+  covered: Set<number>;
+  conflicting: Set<number>;
+}
+
+const RING = (colour: string) => `inset 0 0 0 3px ${colour}`;
+
+export function Board({ puzzle, cells, highlight, coverage, picking, onCell }: {
   puzzle: Puzzle;
   cells: CellK[];
   highlight: Set<number> | null;
+  coverage?: Coverage | null;
   picking: boolean;
   onCell?: (idx: number) => void;
 }) {
@@ -45,6 +63,17 @@ export function Board({ puzzle, cells, highlight, picking, onCell }: {
       const thickBottom = r === N - 1 || reg[idx] !== reg[idx + N];
       const thickRight  = c === N - 1 || reg[idx] !== reg[idx + 1];
       const hl = highlight ? highlight.has(idx) : null;
+      // Coverage, when a split is in hand, replaces the plain highlight.
+      const inCoverage = coverage
+        ? coverage.conflicting.has(idx) ? RING('#dc2626')
+          : coverage.editing.has(idx) ? RING('#f59e0b')
+            : coverage.remaining.has(idx) ? RING('#2563eb')
+              : coverage.covered.has(idx) ? RING('rgba(37, 99, 235, 0.35)')
+                : null
+        : null;
+      const dimmed = coverage
+        ? inCoverage === null
+        : hl === false;
       rowCells.push(
         <td
           key={c}
@@ -60,8 +89,8 @@ export function Board({ puzzle, cells, highlight, picking, onCell }: {
             borderLeft:   thickLeft   ? THICK : THIN,
             borderBottom: thickBottom ? THICK : THIN,
             borderRight:  thickRight  ? THICK : THIN,
-            boxShadow: hl === true ? 'inset 0 0 0 3px #2563eb' : undefined,
-            filter: hl === false ? 'brightness(0.8)' : undefined,
+            boxShadow: coverage ? (inCoverage ?? undefined) : (hl === true ? RING('#2563eb') : undefined),
+            filter: dimmed ? 'brightness(0.8)' : undefined,
           }}
         >
           {cells[idx] === 'star' && (
