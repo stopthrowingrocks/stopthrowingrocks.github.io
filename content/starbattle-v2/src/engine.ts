@@ -1,4 +1,4 @@
-import type { Block, BlockResult, BoolExpr, CmpExpr, CmpOp, Fact, FactOp, HypExpr, NumExpr, PState, Puzzle } from './types';
+import type { Block, BlockResult, BlockStatus, BoolExpr, CmpExpr, CmpOp, Fact, FactOp, HypExpr, NumExpr, PState, Puzzle } from './types';
 import { factName, lineIndices, lineMembers, neighbors, posLabel } from './puzzles';
 
 /** Fresh state with every row/column/region count fact pre-expanded. */
@@ -1125,6 +1125,46 @@ export function legacyFactIds(blocks: Block[]): Map<string, string> {
   };
   walk(blocks, null);
   return ids;
+}
+
+/**
+ * The state a `by_contradiction` body starts from: `pred` assumed, the board marked and
+ * the facts added exactly as the enclosing block would do it. Exposed for the proof search,
+ * which needs to know where an assumption leads before it writes the claim down.
+ */
+export function assume(puzzle: Puzzle, state: PState, pred: BoolExpr): { state: PState } | { error: string } {
+  const next = cloneState(state);
+  const error = addGoalFacts(next, puzzle, pred, 'asm');
+  return error === null ? { state: next } : { error };
+}
+
+/** The outcome of running one statement against a state. */
+export interface StepResult {
+  status: BlockStatus;
+  error?: string;
+  note?: string;
+  /** The state after the statement, or the state passed in when it errored. */
+  state: PState;
+}
+
+/**
+ * Run a single statement against a state, without replaying a whole proof. `evaluate`
+ * always starts from `initState`, which makes it quadratic to walk a proof one step at a
+ * time — what a proof search does constantly. Container blocks work too; they simply have
+ * no enclosing goal, as at the top level of a proof.
+ */
+export function applyStep(puzzle: Puzzle, state: PState, block: Block): StepResult {
+  const results = new Map<string, BlockResult>();
+  const entries = new Map<string, PState>();
+  evalSeq(puzzle, [block], cloneState(state), results, entries, 'step');
+  const result = results.get(block.id);
+  if (!result) return { status: 'skipped', state };
+  return {
+    status: result.status,
+    error: result.error,
+    note: result.note,
+    state: result.status === 'ok' ? result.state : state,
+  };
 }
 
 export function evaluate(puzzle: Puzzle, blocks: Block[]): {
