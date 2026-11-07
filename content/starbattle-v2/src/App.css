@@ -144,7 +144,9 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* Beside the label rather than at the far edge: the facts list scrolls, so anything
+     pinned right sits under the scrollbar and is awkward to hit. */
+  gap: 6px;
   padding: 3px 0 5px;
   background: var(--bg);
   color: var(--text);
