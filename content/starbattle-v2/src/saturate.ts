@@ -35,6 +35,25 @@ export interface SaturateOptions extends SearchOptions {
   noCases?: boolean;
   timeLimitMs?: number;
   onProgress?: (note: string) => void;
+  /**
+   * Shuffle statements of equal price before applying them. Saturation is order-independent
+   * in what it *proves*, but not in what it costs: whichever equally-priced move happens to
+   * go first can make the others redundant. Varying the order measures how much of a reported
+   * cost is the board and how much is the draw.
+   */
+  shuffleSeed?: number;
+}
+
+/** Order-16 LCG — enough to reshuffle a move list, small enough to be reproducible. */
+function shuffled<T>(items: T[], seed: number): T[] {
+  const out = items.slice();
+  let x = (seed * 2654435761) >>> 0 || 1;
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    x = (x * 1664525 + 1013904223) >>> 0;
+    const j = x % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 const settled = (state: PState): number => state.cells.reduce((n, c) => n + (c === null ? 0 : 1), 0);
@@ -76,6 +95,8 @@ export interface SaturateResult {
   state: PState;
   /** The price at which the board stopped yielding; undefined if the goal was reached. */
   stuckAt?: number;
+  /** The dearest price that ever bought progress — which tool the board forced us to reach for. */
+  peakLevel: number;
 }
 
 /**
@@ -92,27 +113,33 @@ export function saturate(
   const blocks: Block[] = [];
   let state = start;
   let level = 1;
+  let peakLevel = 0;
 
   while (!goal(state)) {
     if (Date.now() > deadline) break;
     let advanced = false;
-    for (const move of levelMoves(puzzle, state, level, options).sort((a, b) => a.cost - b.cost)) {
+    const available = levelMoves(puzzle, state, level, options).sort((a, b) => a.cost - b.cost);
+    const sweep = options.shuffleSeed === undefined
+      ? available
+      : shuffled(available, options.shuffleSeed + blocks.length + level);
+    for (const move of sweep) {
       // Re-check: an earlier move in this sweep may have consumed what this one names.
       const step = applyStep(puzzle, state, move.block);
       if (step.status !== 'ok' || !gainsGround(state, step.state)) continue;
       blocks.push(move.block);
       state = step.state;
       advanced = true;
+      peakLevel = Math.max(peakLevel, level);
       options.onProgress?.(`${level}: ${move.block.type} (${settled(state)} settled)`);
       if (goal(state)) break;
     }
     if (advanced) {
       level = 1;              // cheap tools are worth another look now
     } else if (++level > maxCeiling) {
-      return { blocks, state, stuckAt: maxCeiling };
+      return { blocks, state, stuckAt: maxCeiling, peakLevel };
     }
   }
-  return { blocks, state };
+  return { blocks, state, peakLevel };
 }
 
 // ── Pruning ─────────────────────────────────────────────────────────────────────
@@ -259,6 +286,10 @@ export interface ProveResult {
   solved: boolean;
   cost: number;
   ms: number;
+  /** Dearest arithmetic tool the board forced us to reach for, across every round. */
+  peakLevel: number;
+  /** How many times arithmetic ran dry and a case had to be argued. */
+  cases: number;
 }
 
 /** Saturate, and when that stalls, argue about a cell — then saturate again. */
@@ -269,11 +300,14 @@ export function prove(puzzle: Puzzle, start: PState, options: SaturateOptions = 
   let state = start;
   // Shared across rounds: a cell that gave nothing is not asked again at the same price.
   const attempted = new Map<string, number>();
+  let peakLevel = 0;
+  let cases = 0;
 
   for (;;) {
     const round = saturate(puzzle, state, isSolved, { ...options, timeLimitMs: deadline - Date.now() });
     blocks.push(...round.blocks);
     state = round.state;
+    peakLevel = Math.max(peakLevel, round.peakLevel);
     if (isSolved(state) || options.noCases || Date.now() > deadline) break;
 
     options.onProgress?.(`stuck at ${settled(state)} cells — looking for a case to argue`);
@@ -283,6 +317,7 @@ export function prove(puzzle: Puzzle, start: PState, options: SaturateOptions = 
     const before = state;
     blocks.push(argued.block);
     state = argued.state;
+    cases += 1;
     // An argument that settles cells changes what is provable around them, so dead cells
     // sharing a line or region with the new information are worth asking about again.
     const fresh = state.cells
@@ -302,5 +337,8 @@ export function prove(puzzle: Puzzle, start: PState, options: SaturateOptions = 
     }
     options.onProgress?.(`argued a case for ${argued.cost}`);
   }
-  return { blocks, state, solved: isSolved(state), cost: proofCost(blocks), ms: Date.now() - started };
+  return {
+    blocks, state, solved: isSolved(state), cost: proofCost(blocks),
+    ms: Date.now() - started, peakLevel, cases,
+  };
 }
