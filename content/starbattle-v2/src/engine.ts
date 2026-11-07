@@ -22,6 +22,7 @@ export function initState(puzzle: Puzzle): PState {
     facts,
     propositions: [],
     contradiction: false,
+    admitted: false,
   };
 }
 
@@ -31,6 +32,7 @@ function cloneState(s: PState): PState {
     facts: s.facts.map(f => ({ ...f, cells: [...f.cells] })),
     propositions: [...s.propositions],
     contradiction: s.contradiction,
+    admitted: s.admitted,
   };
 }
 
@@ -815,7 +817,7 @@ function addGoalFacts(s: PState, puzzle: Puzzle, pred: BoolExpr | null, prefix: 
 }
 
 function goalSatisfied(s: PState, pred: BoolExpr | null): boolean {
-  if (s.contradiction) return true;
+  if (s.contradiction || s.admitted) return true;
   if (pred?.kind === 'is_star') return s.cells[pred.cell] === 'star';
   if (pred?.kind === 'is_elim') return s.cells[pred.cell] === 'elim';
   if (pred?.kind === 'not' && pred.a?.kind === 'is_star') return s.cells[pred.a.cell] === 'elim';
@@ -944,6 +946,11 @@ function evalSeq(
         error = r.error; note = r.note;
         break;
       }
+      case 'sorry': {
+        next.admitted = true;
+        note = 'admitted without proof';
+        break;
+      }
       case 'argument': {
         const end = evalSeq(puzzle, b.body, cloneState(prev), results, entries, b.id, goal);
         if (sequenceErrored(b.body, results)) {
@@ -953,6 +960,7 @@ function evalSeq(
           next.facts = end.facts;
           next.propositions = end.propositions;
           next.contradiction = end.contradiction;
+          next.admitted = end.admitted;
           note = 'argument complete';
         }
         break;
@@ -1008,6 +1016,10 @@ function evalSeq(
         const end = evalSeq(puzzle, b.body, inner, results, entries, b.id);
         scope = end;
         if (sequenceErrored(b.body, results)) error = 'the contradiction proof contains an invalid step';
+        else if (end.admitted) {
+          addGoalFacts(next, puzzle, goal, 'prv');
+          note = 'admitted without proof';
+        }
         else if (!b.contradiction) error = 'connect the contradictory hypothesis at the end';
         else {
           const contradictionState = cloneState(end);
@@ -1165,6 +1177,12 @@ export function applyStep(puzzle: Puzzle, state: PState, block: Block): StepResu
     note: result.note,
     state: result.status === 'ok' ? result.state : state,
   };
+}
+
+/** Does this proof use `sorry` anywhere, including inside a claim or a case arm? */
+export function containsSorry(blocks: Block[]): boolean {
+  return blocks.some(block =>
+    block.type === 'sorry' || childContainers(block).some(([, children]) => containsSorry(children)));
 }
 
 export function evaluate(puzzle: Puzzle, blocks: Block[]): {

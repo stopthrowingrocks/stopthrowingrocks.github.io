@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Block, Fact, HypExpr, PState, Puzzle } from './types';
 import { parseLevels, groupPuzzles, factName, posLabel, REGION_COLORS } from './puzzles';
-import { childContainers, evaluate, hypothesisForm, isSolved, opSymbol } from './engine';
+import { childContainers, containsSorry, evaluate, hypothesisForm, isSolved, opSymbol } from './engine';
 import { Board, type Coverage } from './Board';
 import { BlocklyProof, type ProofWorkspaceHandle } from './BlocklyProof';
 import levelsData from './levels.json';
@@ -68,6 +68,7 @@ function App() {
   const displayState: PState = liveScope
     ?? (selectedId && lastScope?.id === selectedId ? lastScope.state : evaluation.final);
   const solved = isSolved(evaluation.final);
+  const admitted = useMemo(() => containsSorry(blocks), [blocks]);
   const displayName = (fact: Fact) => renames[fact.id] ?? factName(fact);
   const selectedHypothesisForm = selectedHypothesis
     ? hypothesisForm(selected?.scope ?? selected?.prev ?? displayState, puzzle, selectedHypothesis)
@@ -242,7 +243,16 @@ function App() {
 
       <section id="content">
         <div id="content-board">
-          {solved && <div className="banner solved">Solved! Every cell is proven. ★</div>}
+          {solved && (
+            <div className="banner solved">
+              {admitted
+                ? 'Solved — but the proof admits a step with sorry, so it is incomplete.'
+                : 'Solved! Every cell is proven. ★'}
+            </div>
+          )}
+          {!solved && admitted && (
+            <div className="banner admitted">This proof admits a step with sorry.</div>
+          )}
           {evaluation.final.contradiction && !selected && <div className="banner contra">The proof state is contradictory.</div>}
           {searchActive
             ? <div className="pick-hint">Hypothesis search — click board cells to filter ({searchCells.length} selected)</div>

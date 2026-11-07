@@ -70,6 +70,12 @@ export interface PState {
   /** Proven Boolean propositions that do not normalize to linear count facts. */
   propositions: BoolExpr[];
   contradiction: boolean;
+  /**
+   * A `sorry` was used here: whatever this body was meant to establish is taken as given
+   * rather than proved. It closes the enclosing claim the way a real proof would, so the
+   * work can carry on — the incompleteness is reported rather than silently tolerated.
+   */
+  admitted: boolean;
 }
 
 /**
@@ -104,6 +110,7 @@ export type Block =
   | { id: string; type: 'addsum'; addFactId: string | null; toFactId: string | null }
   | { id: string; type: 'split'; name: string; expr: HypExpr | null; parts: HypExpr[] }
   | { id: string; type: 'argument'; body: Block[] }
+  | { id: string; type: 'sorry' }
   | { id: string; type: 'claim'; pred: BoolExpr | null; body: Block[] }
   | { id: string; type: 'by_contradiction'; body: Block[]; contradiction: HypExpr | null }
   | { id: string; type: 'constructor'; left: Block[]; right: Block[] }

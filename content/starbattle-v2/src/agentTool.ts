@@ -1,5 +1,5 @@
 import type { Block, PState, Puzzle } from './types';
-import { evaluate, isSolved, opSymbol } from './engine';
+import { containsSorry, evaluate, isSolved, opSymbol } from './engine';
 import { parseProof, printProof } from './proofText';
 import { colLetter, factName, lineIndices, posLabel, regionIds } from './puzzles';
 
@@ -71,6 +71,8 @@ export interface RunResult {
   board?: string;
   facts?: string;
   solved: boolean;
+  /** True when the proof leans on a `sorry` — nothing here is fully proved. */
+  admitted: boolean;
   contradiction: boolean;
   cellsProven: number;
   totalCells: number;
@@ -87,7 +89,7 @@ export function runProof(puzzle: Puzzle, proofText: string): RunResult {
     return {
       ok: false,
       parseError: error instanceof Error ? error.message : String(error),
-      solved: false, contradiction: false, cellsProven: 0, totalCells, errorCount: 0,
+      solved: false, admitted: false, contradiction: false, cellsProven: 0, totalCells, errorCount: 0,
     };
   }
   const { results, final } = evaluate(puzzle, blocks);
@@ -99,6 +101,7 @@ export function runProof(puzzle: Puzzle, proofText: string): RunResult {
     board: renderBoard(final, puzzle),
     facts: renderFacts(final, puzzle),
     solved: isSolved(final),
+    admitted: containsSorry(blocks),
     contradiction: final.contradiction,
     cellsProven: final.cells.filter(c => c !== null).length,
     totalCells,
@@ -112,8 +115,10 @@ export function formatReport(r: RunResult): string {
   const status = r.contradiction
     ? 'STATE IS CONTRADICTORY.'
     : r.solved
-      ? 'SOLVED — every cell is proven.'
-      : `${r.cellsProven}/${r.totalCells} cells proven.`;
+      ? (r.admitted
+        ? 'SOLVED — every cell is proven, but the proof uses `sorry` and is incomplete.'
+        : 'SOLVED — every cell is proven.')
+      : `${r.cellsProven}/${r.totalCells} cells proven.${r.admitted ? ' The proof uses `sorry`.' : ''}`;
   const lines = [
     r.annotated || '(empty proof)',
     '',

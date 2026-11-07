@@ -129,6 +129,7 @@
 }
 .banner.solved { background: rgba(245, 166, 35, 0.18); color: #a06a00; }
 .banner.contra { background: rgba(233, 69, 96, 0.15); color: #e94560; }
+.banner.admitted { background: rgba(233, 69, 96, 0.12); color: #b4455c; }
 .pick-hint { background: var(--accent-bg); color: var(--accent); }
 
 .facts {

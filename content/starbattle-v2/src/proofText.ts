@@ -14,7 +14,7 @@ import { cellLabelToIndex, posLabel } from './puzzles';
  *               | (subsum <fact:from> <fact:sub>) | (addsum <fact:to> <fact:add>)
  *               | (define <name> <hyp>) | (replace <fact> <hyp>)
  *               | (split <hyp> <name|_> <hyp>*)
- *               | (argument <stmt>*)
+ *               | (argument <stmt>*) | (sorry)
  *               | (claim <bool> <stmt>*)
  *               | (by-contradiction (body <stmt>*) (via <hyp>))
  *               | (constructor (left <stmt>*) (right <stmt>*))
@@ -58,6 +58,8 @@ Statements (a proof is zero or more of these, one after another):
                                     the name is _. <hyp> must be an = or >= count; each
                                     part must be an = or <= count
   (argument <stmt>*)               a no-op grouping of statements
+  (sorry)                          admit the enclosing claim or by-contradiction without
+                                    proving it — the proof is incomplete until it is replaced
   (claim <bool> <stmt>*)           prove a predicate; body proves it directly,
                                     or via nested by-contradiction/constructor/by-cases
   (by-contradiction (body <stmt>*) (via <hyp>))
@@ -240,6 +242,7 @@ function printBlockCore(b: Block, puzzle: Puzzle, results?: Results): Sx {
       b.name ? atom(printAtomOrString(b.name)) : atom('_'),
       ...b.parts.map(part => printHyp(part, puzzle)),
     ]);
+    case 'sorry': return tagged('sorry', []);
     case 'argument': {
       const body = b.body.map(child => printBlock(child, puzzle, results));
       return tagged('argument', body);
@@ -463,6 +466,7 @@ function parseStmt(sx: Sx, puzzle: Puzzle): Block {
         parts: items.slice(3).map(part => parseHyp(part, puzzle)).filter(part => part !== null),
       };
     }
+    case 'sorry': return { id, type: 'sorry' };
     case 'argument': {
       const body = items.slice(1).map(s => parseStmt(s, puzzle));
       return { id, type: 'argument', body };

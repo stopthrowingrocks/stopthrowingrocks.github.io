@@ -385,6 +385,16 @@ function registerBlocks() {
   defineSplitBlock('sb_split', false);
   defineSplitBlock('sb_split_as', true);
 
+  Blockly.Blocks.sb_sorry = {
+    init() {
+      this.appendDummyInput().appendField('sorry');
+      this.setPreviousStatement(true, 'Proof');
+      this.setNextStatement(true, 'Proof');
+      this.setColour(0);
+      this.setTooltip('Admit the enclosing claim without proving it. The proof stays usable, ' +
+        'but it is incomplete until this is replaced.');
+    },
+  };
   Blockly.Blocks.sb_argument = {
     init() {
       this.appendDummyInput().appendField('argument');
@@ -525,6 +535,7 @@ function makeToolbox(facts: Fact[]): Blockly.utils.toolbox.ToolboxDefinition {
     { kind: 'block', type: 'sb_by_contradiction' },
     { kind: 'block', type: 'sb_constructor' },
     { kind: 'block', type: 'sb_by_cases' },
+    { kind: 'block', type: 'sb_sorry' },
     { kind: 'label', text: 'CLAIMS' },
     { kind: 'block', type: 'sb_compare' },
     { kind: 'block', type: 'sb_and' },
@@ -659,6 +670,7 @@ function proofBlock(block: Blockly.Block, puzzle: Puzzle): Block | null {
         parts,
       };
     }
+    case 'sb_sorry': return { id: block.id, type: 'sorry' };
     case 'sb_argument': return { id: block.id, type: 'argument', body: proofSequence(block.getInputTargetBlock('BODY'), puzzle) };
     case 'sb_claim': return {
       id: block.id,
@@ -901,6 +913,7 @@ function buildStmt(workspace: Blockly.WorkspaceSvg, b: Block, puzzle: Puzzle): B
       connectValue(block, 'VALUE', buildHyp(workspace, b.expr, puzzle));
       return block;
     }
+    case 'sorry': return newBuiltBlock(workspace, 'sb_sorry');
     case 'argument': {
       const block = newBuiltBlock(workspace, 'sb_argument');
       connectStatement(block, 'BODY', buildSequence(workspace, b.body, puzzle));
@@ -1337,7 +1350,13 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
     for (const block of workspace.getAllBlocks(false)) {
       currentBlocks.add(block.id);
       const result = results.get(block.id);
-      const warning = result?.status === 'error' ? result.error ?? 'This step is invalid' : null;
+      // A `sorry` always carries its warning: it is valid, but the proof is not finished,
+      // and that should be visible on the block rather than only in the banner.
+      const warning = result?.status === 'error'
+        ? result.error ?? 'This step is invalid'
+        : block.type === 'sb_sorry'
+          ? 'Admitted without proof — replace this to finish the proof.'
+          : null;
       if (warningTextRef.current.get(block.id) !== warning) {
         block.setWarningText(warning, 'proof');
         warningTextRef.current.set(block.id, warning);
