@@ -4,14 +4,19 @@
  *   npx tsx scripts/grade-corpus.ts <layouts.json> [--out graded.json] [--pick n] [--corpus out.json]
  *
  * CP-SAT settles a 5x5 and proves it unique in about a millisecond whatever the layout, so
- * solver time carries no signal at this size. Proof cost carries plenty, but it is a noisy
- * ruler. Shuffling the order of equally-priced statements moves the reported cost on 92% of
- * boards, by a median of 2 and as much as 22 — whichever equal move goes first can make the
- * others redundant. Over the same boards the rung of the ladder never moved at all.
+ * solver time carries no signal at this size. Proof cost carries some, but it prices the
+ * finished proof rather than the work of finding it, and it is noisy with it: shuffling the
+ * order of equally-priced statements moves it on 89% of boards, by more than 10% on 64%.
  *
- * So the band is the ladder — which tool the board forced us to reach for — and cost only
- * separates boards inside a band, taken as a median over several shuffled runs so that the
- * ordering is not an artefact of one lucky draw.
+ * What a board really costs is the sifting. Checking every cell against every hypothesis for
+ * a one-step contradiction is 25x15 on a 5x5 however short the claim that comes out, and
+ * measured, an argument runs to some 6,600 candidates per cell settled against arithmetic's
+ * 900. Counting candidates examined gives a measure that barely moves with the shuffle (9%,
+ * and more than 10% on only 6%) and spans 58 to 69,000 across the pool.
+ *
+ * So difficulty is search work. The band — which rung of the tool ladder the board forced —
+ * is kept as a label, and work turns out to order the bands monotonically, 58 / 621 / 1,929
+ * / 6,392 / 16,664 / 69,188, so the two agree and work ranks finely inside each.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { initState, isSolved } from '../src/engine';
@@ -54,9 +59,11 @@ interface Graded {
   index: number;
   shape: string[];
   band: typeof BANDS[number];
-  /** Median cost over the shuffled runs — the one worth comparing between boards. */
+  /** Candidates examined to find the proof: the difficulty measure. */
+  work: number;
+  /** Median cost over the shuffled runs — what the proof costs to write, not to find. */
   cost: number;
-  /** How far the shuffle moved it, so a reader knows what the median is worth. */
+  /** How far the shuffle moved the cost, so a reader knows what the median is worth. */
   costSpread: number;
   steps: number;
   peakLevel: number;
@@ -88,6 +95,7 @@ shapes.forEach((shape, index) => {
   const done = attempts.filter(a => isSolved(a.state));
   const best = done.length ? done : attempts;
   const costs = best.map(a => a.cost).sort((a, b) => a - b);
+  const works = best.map(a => a.work).sort((a, b) => a - b);
   // The band is read off the run that needed the least, so a board is credited with the
   // easiest route anyone found rather than the unluckiest.
   const easiest = best.reduce((a, b) =>
@@ -95,6 +103,7 @@ shapes.forEach((shape, index) => {
   graded.push({
     index, shape,
     band: bandOf(easiest.peakLevel, easiest.cases),
+    work: works[Math.floor(works.length / 2)],
     cost: costs[Math.floor(costs.length / 2)],
     costSpread: costs[costs.length - 1] - costs[0],
     steps: easiest.blocks.length,
@@ -111,65 +120,73 @@ console.log(`${shapes.length} layouts graded in ${((Date.now() - started) / 1000
 console.log(`  proved: ${solved.length}/${shapes.length}\n`);
 
 const inBand = (band: string) => solved.filter(g => g.band === band);
-console.log('band                    count   cost (min/median/max)');
+const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+
+console.log('band                    count   work (min/median/max)          cost');
 for (const band of BANDS) {
   const members = inBand(band);
   if (!members.length) {
     console.log(`  ${band.padEnd(22)} ${String(0).padStart(4)}`);
     continue;
   }
-  const costs = members.map(g => g.cost).sort((a, b) => a - b);
+  const works = members.map(g => g.work).sort((a, b) => a - b);
   console.log(`  ${band.padEnd(22)} ${String(members.length).padStart(4)}   ` +
-    `${costs[0]} / ${costs[Math.floor(costs.length / 2)]} / ${costs[costs.length - 1]}`);
+    `${String(works[0]).padStart(6)} / ${String(median(works)).padStart(6)} / ` +
+    `${String(works[works.length - 1]).padStart(7)}    ` +
+    `${String(median(members.map(g => g.cost))).padStart(4)}`);
 }
 
-// Does the ladder actually order the boards, or is it just relabelling cost?
-const overlap = BANDS.map(inBand).filter(m => m.length);
-console.log('\ncost overlap between neighbouring bands:');
-for (let i = 1; i < overlap.length; i += 1) {
-  const below = Math.max(...overlap[i - 1].map(g => g.cost));
-  const above = Math.min(...overlap[i].map(g => g.cost));
-  console.log(`  ${overlap[i - 1][0].band} tops out at ${below}; ` +
-    `${overlap[i][0].band} starts at ${above}` +
-    (above > below ? '  (clean break)' : `  (overlapping by ${below - above + 1})`));
+// Work is meant to rank boards where cost only labelled them, so it has to separate the
+// bands that cost ran together.
+const populated = BANDS.map(inBand).filter(m => m.length);
+console.log('\nseparation between neighbouring bands:');
+for (let i = 1; i < populated.length; i += 1) {
+  const [below, above] = [populated[i - 1], populated[i]];
+  const gap = median(above.map(g => g.work)) / median(below.map(g => g.work));
+  const costGap = median(above.map(g => g.cost)) - median(below.map(g => g.cost));
+  console.log(`  ${below[0].band.padEnd(22)} -> ${above[0].band.padEnd(22)}  ` +
+    `work x${gap.toFixed(1)}   cost ${costGap >= 0 ? '+' : ''}${costGap}`);
 }
 
 if (pick) {
-  // A spread means equal weight per band, not per layout: the easy bands are crowded, and
-  // sampling the pool as it comes would bury the interesting boards.
-  //
-  // Within a band the second axis differs. For the arithmetic bands it is cost — how long
-  // the grind runs. For the case-split bands cost is a poor guide (it overlaps the
-  // arithmetic bands by nearly 30), and what separates them is where arithmetic died:
-  // a board that stalls at 3 of 25 cells demands far more of the case than one that stalls
-  // at 17, and the wall position runs at -0.58 against cost.
-  const perBand = Math.ceil(pick / BANDS.filter(b => inBand(b).length).length);
+  /*
+   * Work is one monotone scale from 58 to 69,000, so a spread of difficulties is a spread
+   * along it rather than a quota per band. It is spread in *log* work: the bands sit at
+   * roughly constant multiples of each other, so equal linear steps would put almost every
+   * pick among the hardest boards and none between 58 and 600.
+   */
+  const ranked = [...solved].sort((a, b) => a.work - b.work);
+  const low = Math.log(ranked[0].work);
+  const high = Math.log(ranked[ranked.length - 1].work);
   const chosen: Graded[] = [];
-  for (const band of BANDS) {
-    const members = inBand(band).sort((a, b) => (
-      a.cases ? a.arithmeticCells - b.arithmeticCells || a.cost - b.cost : a.cost - b.cost
-    ));
-    if (!members.length) continue;
-    const take = Math.min(perBand, members.length);
-    for (let i = 0; i < take; i += 1) {
-      chosen.push(members[Math.floor((i * (members.length - 1)) / Math.max(1, take - 1))]);
+  for (let i = 0; i < pick; i += 1) {
+    const target = low + ((high - low) * i) / Math.max(1, pick - 1);
+    // Nearest board in log work that has not already been taken.
+    let bestAt = -1;
+    let bestGap = Infinity;
+    for (let j = 0; j < ranked.length; j += 1) {
+      if (chosen.includes(ranked[j])) continue;
+      const gap = Math.abs(Math.log(ranked[j].work) - target);
+      if (gap < bestGap) { bestGap = gap; bestAt = j; }
     }
+    if (bestAt >= 0) chosen.push(ranked[bestAt]);
   }
-  const unique = [...new Map(chosen.map(g => [g.index, g])).values()]
-    .sort((a, b) => BANDS.indexOf(a.band) - BANDS.indexOf(b.band) || a.cost - b.cost)
-    .slice(0, pick);
-  console.log(`\npicked ${unique.length}, ${perBand} per band where available:`);
+  const unique = chosen.sort((a, b) => a.work - b.work);
+  console.log(`\npicked ${unique.length}, spread evenly in log search work:`);
   for (const g of unique) {
-    console.log(`  #${String(g.index + 1).padStart(4)}  cost ${String(g.cost).padStart(3)}` +
-      `${g.costSpread ? ` ±${g.costSpread}` : '   '}  ${g.band.padEnd(20)}` +
+    console.log(`  #${String(g.index + 1).padStart(4)}  work ${String(g.work).padStart(7)}  ` +
+      `cost ${String(g.cost).padStart(3)}  ${g.band.padEnd(20)}` +
       (g.cases ? `  arithmetic stalls at ${g.arithmeticCells}/${g.cells}` : ''));
   }
+  const spread = new Map<string, number>();
+  for (const g of unique) spread.set(g.band, (spread.get(g.band) ?? 0) + 1);
+  console.log(`  bands represented: ${[...spread].map(([b, n]) => `${b} ${n}`).join(', ')}`);
   const out = flag('--corpus');
   if (out) {
     // Written with the grades attached: a bare list of regions would lose the only thing
     // that makes this a corpus rather than a pile of layouts.
     writeFileSync(out, `${JSON.stringify(unique.map(g => ({
-      shape: g.shape, band: g.band, cost: g.cost, costSpread: g.costSpread,
+      shape: g.shape, band: g.band, work: g.work, cost: g.cost, costSpread: g.costSpread,
       peakLevel: g.peakLevel, cases: g.cases, arithmeticCells: g.arithmeticCells,
     })), null, 1)}\n`, 'utf8');
     console.log(`\nwrote ${unique.length} graded layouts to ${out}`);

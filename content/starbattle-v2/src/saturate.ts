@@ -1,6 +1,7 @@
 import { applyStep, assume, isSolved } from './engine';
 import {
-  boardAdvancingMoves, forcedMoves, proofCost, splitMoves, statementCost, type Move, type SearchOptions,
+  boardAdvancingMoves, forcedMoves, proofCost, splitMoves, statementCost, tally, newProbe, probeTotal,
+  type Move, type SearchOptions,
 } from './search';
 import { signedMoves } from './signed';
 import type { Block, BoolExpr, Fact, PState, Puzzle } from './types';
@@ -395,6 +396,9 @@ export function findCase(
         const pred = cellPred(cell, kind);
         const opened = assume(puzzle, state, { eid: `n${cell}`, kind: 'not', a: pred });
         if ('error' in opened) continue;
+        // Cells times hypotheses: what this tool charges to be searched, which has nothing
+        // to do with the three its claim costs to write.
+        tally(options.probe, 'contradiction', Math.max(1, opened.state.facts.length));
 
         const inner = saturate(puzzle, opened.state, s => s.contradiction,
           { ...options, maxCeiling: ceiling, noCases: true, timeLimitMs: 15000 });
@@ -438,6 +442,15 @@ export interface ProveResult {
   peakLevel: number;
   /** How many times arithmetic ran dry and a case had to be argued. */
   cases: number;
+  /**
+   * Candidates examined to find the whole proof, by tool, and in total.
+   *
+   * This is the board's price in search rather than in prose. The two come apart badly: a
+   * one-step argument is three statements to write and some 6,600 candidates to find, while
+   * the arithmetic it competes with is dearer to write and about 900 to find.
+   */
+  work: number;
+  workByTool: Record<string, number>;
 }
 
 /**
@@ -450,8 +463,9 @@ export interface ProveResult {
 export function prove(puzzle: Puzzle, start: PState, options: SaturateOptions = {}): ProveResult {
   const started = Date.now();
   const cases = options.noCases ? null : newCaseContext();
+  const probe = options.probe ?? newProbe();
   const run = saturate(puzzle, start, isSolved,
-    { ...options, timeLimitMs: options.timeLimitMs ?? 600000 }, cases);
+    { ...options, probe, timeLimitMs: options.timeLimitMs ?? 600000 }, cases);
   return {
     blocks: run.blocks,
     state: run.state,
@@ -460,5 +474,7 @@ export function prove(puzzle: Puzzle, start: PState, options: SaturateOptions = 
     ms: Date.now() - started,
     peakLevel: run.peakLevel,
     cases: run.cases,
+    work: probeTotal(probe),
+    workByTool: Object.fromEntries(probe.tried),
   };
 }

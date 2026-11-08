@@ -237,6 +237,8 @@ export const boardAdvancingMoves: MoveGenerator = (puzzle, state, options) => {
     outer: Leaf[], inner: Leaf[],
     cells: number[], op: FactOp, target: number,
   ) => {
+    // One combination of facts weighed — the unit of work this tool spends.
+    tally(options.probe, 'arithmetic');
     if (cells.length === 0) return;
     // The only counts that force a cell: none left to place, or exactly as many as cells.
     const allElim = target === 0 && hasUpper(op);
@@ -412,9 +414,11 @@ export const splitMoves: MoveGenerator = (puzzle, state) => {
  * makes it the right generator for exploring inside an assumption, where the question is
  * only whether the assumption breaks — not how elegantly.
  */
-export const forcedMoves: MoveGenerator = (puzzle, state) => {
+export const forcedMoves: MoveGenerator = (puzzle, state, options) => {
   const before = resolved(state);
   const moves: Move[] = [];
+  // One glance per hypothesis, and nothing else: the whole class is the fact pool.
+  tally(options.probe, 'forced', state.facts.length);
   for (const fact of state.facts) {
     const allElim = fact.target === 0 && hasUpper(fact.op);
     const allStar = fact.target === fact.cells.length && hasLower(fact.op);
@@ -458,6 +462,9 @@ export const contradictionMoves: MoveGenerator = (puzzle, state, options) => {
       // The body opens with the opposite of what the claim asserts.
       const opened = assume(puzzle, state, { eid: exprId(), kind: 'not', a: pred });
       if ('error' in opened) continue;
+      // One supposition weighed against every hypothesis it could break: the cells-times-
+      // hypotheses product that makes this tool dear to search, whatever the claim costs.
+      tally(options.probe, 'contradiction', Math.max(1, opened.state.facts.length));
 
       let body: Block[] = [];
       let end = opened.state;
@@ -512,10 +519,34 @@ function combineSums(left: FactOp, right: FactOp): FactOp {
 
 // ── Search ──────────────────────────────────────────────────────────────────────
 
+/**
+ * How much sifting each tool did, as opposed to what its result cost to write down.
+ *
+ * Statement cost prices the finished proof. It says nothing about the work of finding it:
+ * checking every cell against every hypothesis for a one-step contradiction is 25x15 on a
+ * 5x5 however short the claim that comes out. Two proofs of the same length are not equally
+ * hard to come by, so the tools are compared on candidates examined per cell settled.
+ */
+export interface WorkProbe {
+  /** Candidates examined, by tool. */
+  tried: Map<string, number>;
+}
+
+export const newProbe = (): WorkProbe => ({ tried: new Map() });
+
+export function tally(probe: WorkProbe | undefined, tool: string, n = 1): void {
+  if (probe && n) probe.tried.set(tool, (probe.tried.get(tool) ?? 0) + n);
+}
+
+export const probeTotal = (probe: WorkProbe): number =>
+  [...probe.tried.values()].reduce((a, b) => a + b, 0);
+
 export interface SearchOptions {
   /** Reached the target? Defaults to "every cell proven". */
   goal?: (state: PState) => boolean;
   generators?: MoveGenerator[];
+  /** Collects candidates examined per tool. Measurement only — no effect on what is found. */
+  probe?: WorkProbe;
   /**
    * The most one statement may cost. There is no separate limit on operators — combining
    * more facts simply costs more, and this is where that stops.

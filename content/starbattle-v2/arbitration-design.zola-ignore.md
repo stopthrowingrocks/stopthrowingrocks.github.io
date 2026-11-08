@@ -8,6 +8,18 @@ algorithm, which is fine — it is the current meta — but it means the orderin
 So: should arguing a case be interleaved with arithmetic, rather than held back until
 arithmetic exhausts its ceiling? Measured on 300 boards from the 1500-board 5x5 pool.
 
+## Two different prices
+
+A statement has two costs and they are not the same thing:
+
+- **what it costs to write** — `statementCost`, the length of the finished proof;
+- **what it costs to find** — the size of the class you must sift to reach it.
+
+Only the first was ever measured here. The second is the one a solver feels: checking every
+cell against every hypothesis for a one-step contradiction is 25x15 on a 5x5 however short
+the claim that comes out. `WorkProbe` now counts candidates examined per tool, and the two
+prices disagree about nearly everything below.
+
 ## What the prices look like
 
 An argument is available at body ceiling 1 on **every** board that stalls under arithmetic
@@ -33,28 +45,55 @@ finishes.
 
 The reason is that statement cost is the wrong basis for comparing two *different* tools.
 An argument settles exactly one cell by construction. A dear arithmetic statement can settle
-several. Per cell settled, at the stall:
+several. Priced both ways, per cell settled at the stall:
 
-- cheapest argument: **3.00** (mean 3.36)
-- best arithmetic above the stall: **2.00** (mean 2.22)
+| | per statement | per candidate examined |
+|---|---|---|
+| cheapest argument | 3.00 | **6,619** |
+| best arithmetic above the stall | 2.00 | **904** |
+| arithmetic is the better buy | 24/36 stalls | **34/36 stalls** |
 
-Arithmetic is the better buy at **31 of 36** stalls where both can move, and at 30 further
-stalls only the argument can move at all, so it gets bought there regardless. Exhausting
-arithmetic first is therefore the right rule about 86% of the time — not by accident of
-implementation, but because that is where the value is.
+Statement cost makes it a close thing — 1.5x, arithmetic ahead two times in three. Search
+work makes it lopsided: **7.3x**, arithmetic ahead 34 times in 36. Class size is the dominant
+term, and it is the term that was not being counted. That is also why both interleavings lost
+on wall-clock as well as on cost: the contradiction tool is simply dear to search.
 
-Explicitly arbitrating on cost-per-cell should then match arithmetic-first and beat it on the
-5 stalls where the argument really is better. It does not, because the lookahead needed to
-price the unbought arithmetic levels costs more than those 5 stalls are worth. Kept behind
-`bidCases`, off by default, because the conclusion changes as soon as a tool arrives whose
-progress is not measured in cells — see below.
+So exhausting arithmetic first is right, and far more robustly than the statement-cost
+numbers suggested. Arbitrating explicitly on cost-per-cell still does not pay, because the
+lookahead needed to price the unbought arithmetic levels costs more than the 2 stalls it
+would win. Kept behind `bidCases`, off by default, because the conclusion changes as soon as
+a tool arrives whose progress is not measured in cells — see below.
 
-## What this means for the grading
+## This is the difficulty measure
 
-The bands rest on the ladder, and the ladder is now known to be ordered correctly rather
-than arbitrarily. That the two orders produce an identical mean cost also says the
-"needs a case split" bands are not an artefact of when we choose to argue: those boards
-need an argument under either order.
+Search work turns out to be what the grading should have rested on all along. Against proof
+cost, over 125 boards proved four times each with the order of equals shuffled:
+
+| | moved by the shuffle | moved by more than 10% |
+|---|---|---|
+| proof cost | 89% | 64% |
+| search work | **9%** | **6%** |
+
+Cost is mostly the draw; work is the board. And work orders the tool ladder monotonically,
+at a near-constant multiple per rung:
+
+| band | median work | against the rung below |
+|---|---|---|
+| forced only | 59 | |
+| one-step arithmetic | 623 | x10.6 |
+| compound arithmetic | 1,861 | x3.0 |
+| deep arithmetic | 6,075 | x3.3 |
+| one case split | 17,667 | x2.9 |
+| several case splits | 52,544 | x3.0 |
+
+So the ladder is a geometric scale in search work, roughly a factor of three per rung, and
+difficulty is naturally logarithmic. Cost does not see this: `deep arithmetic` to
+`one case split` is x2.9 in work and **+1** in cost. Boards exist where the two diverge
+outright — #742 costs 15 to write and 7,807 to find.
+
+The corpus is therefore picked by spreading evenly in *log* work rather than by quota per
+band, which gives a smooth ladder from 39 to 183,191 with the bands falling out in order.
+The bands stay as labels; work does the ranking, including inside a band.
 
 ## The next tool: `count(S) != k`
 
@@ -91,9 +130,18 @@ This also subsumes the existing case finder rather than sitting beside it. For a
 the current tests pin the singleton behaviour while it is rebuilt.
 
 **The catch, and why `bidCases` is worth keeping.** A multi-cell disequality settles no
-cells — it tightens a bound. Cost per cell settled scores it at infinity, so under the
+cells — it tightens a bound. Any per-cell measure scores it at infinity, so under the
 arbitration measured above it would never be bought at all. Adding this tool therefore
 requires the progress measure to count bound-tightening as progress (`gainsGround` already
-does, counting new facts; the *ratio* used for arbitration does not), and the 2.00-against-3.00
-comparison has to be re-measured once it does. The arbitration question is settled for the
-tools we have now, and reopens the moment this one lands.
+does, counting new facts; the *ratio* used for arbitration does not).
+
+Its class size also wants thinking about before it is built. Restricting candidates to the
+endpoints of known intervals gives two per fact, so with 15 or so hypotheses in play that is
+about 30 suppositions, against the 50 a cell-based case finder opens on a 5x5 — the same
+order. But each one is a nested contradiction search, so the measured 6,600 candidates per
+cell settled is the right thing to expect per attempt, and the tool only pays if a tightened
+bound unlocks more than a settled cell does. That is exactly the lookahead question, and it
+is the reason not to guess: instrument it with `WorkProbe` and measure, as above.
+
+The arbitration question is settled for the tools we have now, and reopens the moment this
+one lands.

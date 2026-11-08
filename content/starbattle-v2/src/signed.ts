@@ -1,7 +1,7 @@
 import { applyStep } from './engine';
 import { neighbors } from './puzzles';
 import type { Block, FactOp, HypExpr, PState, Puzzle } from './types';
-import { exprCost, type Move, type MoveGenerator, type SearchOptions } from './search';
+import { exprCost, tally, type Move, type MoveGenerator, type SearchOptions } from './search';
 
 /**
  * A move constructor that eliminates rather than enumerates.
@@ -176,6 +176,8 @@ export const signedMoves: MoveGenerator = (puzzle, state, options: SignedOptions
   const forcing = new Map<string, { type: 'stars' | 'elims'; expr: HypExpr; cost: number }>();
 
   const record = (partial: Partial) => {
+    // One signed combination weighed. The beam bounds this, which is the whole point of it.
+    tally(options.probe, 'signed');
     const support = popcount(partial.mask);
     if (support === 0) return;
     const allElim = partial.target === 0 && hasUpper(partial.op);

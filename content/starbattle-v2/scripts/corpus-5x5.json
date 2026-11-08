@@ -1,135 +1,32 @@
 [
  {
   "shape": [
-   "11100",
-   "41100",
-   "44400",
-   "43000",
-   "33332"
-  ],
-  "band": "forced only",
-  "cost": 7,
-  "costSpread": 2,
-  "peakLevel": 1,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "44444",
-   "14404",
-   "11400",
-   "12000",
-   "22223"
-  ],
-  "band": "forced only",
-  "cost": 8,
-  "costSpread": 2,
-  "peakLevel": 1,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
    "33333",
-   "43333",
-   "43000",
-   "44001",
-   "42111"
+   "13333",
+   "00433",
+   "00222",
+   "00022"
   ],
   "band": "forced only",
-  "cost": 9,
-  "costSpread": 1,
+  "work": 39,
+  "cost": 10,
+  "costSpread": 2,
   "peakLevel": 1,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "11140",
-   "12240",
-   "12440",
-   "12240",
-   "13240"
-  ],
-  "band": "forced only",
-  "cost": 9,
-  "costSpread": 0,
-  "peakLevel": 1,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "22441",
-   "22443",
-   "22333",
-   "20033",
-   "00033"
-  ],
-  "band": "forced only",
-  "cost": 9,
-  "costSpread": 1,
-  "peakLevel": 1,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "44111",
-   "44111",
-   "22233",
-   "02223",
-   "22333"
-  ],
-  "band": "forced only",
-  "cost": 9,
-  "costSpread": 1,
-  "peakLevel": 1,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "44441",
-   "44221",
-   "42221",
-   "03221",
+   "01113",
+   "02133",
+   "02113",
+   "02411",
    "00001"
   ],
   "band": "forced only",
-  "cost": 10,
-  "costSpread": 1,
-  "peakLevel": 1,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "00003",
-   "10333",
-   "11133",
-   "14123",
-   "14444"
-  ],
-  "band": "forced only",
-  "cost": 10,
-  "costSpread": 1,
-  "peakLevel": 1,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "22333",
-   "22330",
-   "12300",
-   "42004",
-   "44444"
-  ],
-  "band": "forced only",
-  "cost": 10,
-  "costSpread": 1,
+  "work": 45,
+  "cost": 9,
+  "costSpread": 2,
   "peakLevel": 1,
   "cases": 0,
   "arithmeticCells": 25
@@ -143,6 +40,7 @@
    "11111"
   ],
   "band": "forced only",
+  "work": 52,
   "cost": 12,
   "costSpread": 1,
   "peakLevel": 1,
@@ -151,14 +49,95 @@
  },
  {
   "shape": [
-   "10044",
-   "10004",
-   "20300",
-   "23300",
-   "22333"
+   "44000",
+   "44003",
+   "44023",
+   "13323",
+   "33333"
+  ],
+  "band": "forced only",
+  "work": 60,
+  "cost": 9,
+  "costSpread": 0,
+  "peakLevel": 1,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "33331",
+   "30411",
+   "00001",
+   "00021",
+   "00021"
+  ],
+  "band": "forced only",
+  "work": 69,
+  "cost": 10,
+  "costSpread": 1,
+  "peakLevel": 1,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "22000",
+   "00011",
+   "01114",
+   "01133",
+   "11133"
+  ],
+  "band": "forced only",
+  "work": 78,
+  "cost": 10,
+  "costSpread": 1,
+  "peakLevel": 1,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "00000",
+   "04440",
+   "01143",
+   "01122",
+   "11122"
+  ],
+  "band": "forced only",
+  "work": 78,
+  "cost": 11,
+  "costSpread": 1,
+  "peakLevel": 1,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "14444",
+   "11144",
+   "10032",
+   "10033",
+   "00033"
+  ],
+  "band": "forced only",
+  "work": 78,
+  "cost": 10,
+  "costSpread": 1,
+  "peakLevel": 1,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "44411",
+   "44441",
+   "44000",
+   "00023",
+   "02222"
   ],
   "band": "one-step arithmetic",
-  "cost": 9,
+  "work": 167,
+  "cost": 13,
   "costSpread": 1,
   "peakLevel": 2,
   "cases": 0,
@@ -166,13 +145,46 @@
  },
  {
   "shape": [
-   "00333",
-   "00431",
-   "44411",
-   "44442",
-   "44442"
+   "00221",
+   "00221",
+   "00211",
+   "32211",
+   "44411"
   ],
   "band": "one-step arithmetic",
+  "work": 171,
+  "cost": 13,
+  "costSpread": 0,
+  "peakLevel": 2,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "11112",
+   "13112",
+   "43012",
+   "43332",
+   "43332"
+  ],
+  "band": "one-step arithmetic",
+  "work": 175,
+  "cost": 11,
+  "costSpread": 0,
+  "peakLevel": 2,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "21144",
+   "21114",
+   "22314",
+   "00011",
+   "00011"
+  ],
+  "band": "one-step arithmetic",
+  "work": 188,
   "cost": 11,
   "costSpread": 1,
   "peakLevel": 2,
@@ -181,88 +193,14 @@
  },
  {
   "shape": [
-   "33222",
-   "33222",
-   "33342",
-   "11144",
-   "11100"
+   "00003",
+   "00113",
+   "04211",
+   "22212",
+   "22222"
   ],
   "band": "one-step arithmetic",
-  "cost": 12,
-  "costSpread": 0,
-  "peakLevel": 2,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "40011",
-   "40002",
-   "44032",
-   "43333",
-   "33333"
-  ],
-  "band": "one-step arithmetic",
-  "cost": 12,
-  "costSpread": 0,
-  "peakLevel": 2,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "11122",
-   "44123",
-   "44223",
-   "44400",
-   "44400"
-  ],
-  "band": "one-step arithmetic",
-  "cost": 12,
-  "costSpread": 1,
-  "peakLevel": 2,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "11100",
-   "11133",
-   "11333",
-   "21224",
-   "22224"
-  ],
-  "band": "one-step arithmetic",
-  "cost": 13,
-  "costSpread": 1,
-  "peakLevel": 2,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "30002",
-   "33402",
-   "33442",
-   "33112",
-   "33111"
-  ],
-  "band": "one-step arithmetic",
-  "cost": 13,
-  "costSpread": 2,
-  "peakLevel": 2,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "43333",
-   "40033",
-   "44033",
-   "42223",
-   "11222"
-  ],
-  "band": "one-step arithmetic",
+  "work": 218,
   "cost": 14,
   "costSpread": 0,
   "peakLevel": 2,
@@ -271,15 +209,16 @@
  },
  {
   "shape": [
-   "12440",
-   "12440",
-   "12200",
-   "13000",
-   "33000"
+   "01111",
+   "04443",
+   "00433",
+   "02443",
+   "00043"
   ],
   "band": "one-step arithmetic",
-  "cost": 15,
-  "costSpread": 1,
+  "work": 245,
+  "cost": 14,
+  "costSpread": 0,
   "peakLevel": 2,
   "cases": 0,
   "arithmeticCells": 25
@@ -287,58 +226,30 @@
  {
   "shape": [
    "22222",
-   "00224",
-   "04444",
-   "00443",
-   "01113"
+   "00221",
+   "00233",
+   "40233",
+   "40233"
   ],
   "band": "one-step arithmetic",
-  "cost": 17,
-  "costSpread": 0,
+  "work": 289,
+  "cost": 13,
+  "costSpread": 1,
   "peakLevel": 2,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "34111",
-   "33121",
-   "33322",
-   "00022",
-   "00022"
+   "41002",
+   "40032",
+   "40033",
+   "40033",
+   "40333"
   ],
   "band": "compound arithmetic",
-  "cost": 12,
-  "costSpread": 2,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "33000",
-   "23300",
-   "22341",
-   "23341",
-   "23311"
-  ],
-  "band": "compound arithmetic",
-  "cost": 18,
-  "costSpread": 2,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "04444",
-   "00044",
-   "11044",
-   "11002",
-   "11333"
-  ],
-  "band": "compound arithmetic",
-  "cost": 20,
+  "work": 331,
+  "cost": 16,
   "costSpread": 0,
   "peakLevel": 3,
   "cases": 0,
@@ -346,13 +257,158 @@
  },
  {
   "shape": [
-   "11100",
-   "11300",
-   "11330",
-   "21330",
-   "22244"
+   "11110",
+   "12114",
+   "22224",
+   "22244",
+   "33344"
+  ],
+  "band": "one-step arithmetic",
+  "work": 384,
+  "cost": 13,
+  "costSpread": 2,
+  "peakLevel": 2,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "11111",
+   "41333",
+   "00323",
+   "00222",
+   "00000"
   ],
   "band": "compound arithmetic",
+  "work": 434,
+  "cost": 16,
+  "costSpread": 1,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "00333",
+   "00231",
+   "00221",
+   "22222",
+   "22242"
+  ],
+  "band": "compound arithmetic",
+  "work": 512,
+  "cost": 22,
+  "costSpread": 0,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "22204",
+   "31104",
+   "31144",
+   "11144",
+   "11111"
+  ],
+  "band": "one-step arithmetic",
+  "work": 600,
+  "cost": 14,
+  "costSpread": 1,
+  "peakLevel": 2,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "12240",
+   "12230",
+   "12330",
+   "11300",
+   "11100"
+  ],
+  "band": "compound arithmetic",
+  "work": 676,
+  "cost": 22,
+  "costSpread": 3,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "44444",
+   "44440",
+   "12200",
+   "11100",
+   "11330"
+  ],
+  "band": "compound arithmetic",
+  "work": 790,
+  "cost": 19,
+  "costSpread": 1,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "33322",
+   "33322",
+   "31112",
+   "31442",
+   "04422"
+  ],
+  "band": "compound arithmetic",
+  "work": 913,
+  "cost": 20,
+  "costSpread": 4,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "13322",
+   "11122",
+   "01000",
+   "00004",
+   "44444"
+  ],
+  "band": "one-step arithmetic",
+  "work": 1053,
+  "cost": 14,
+  "costSpread": 1,
+  "peakLevel": 2,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "11111",
+   "10044",
+   "10004",
+   "13324",
+   "11324"
+  ],
+  "band": "compound arithmetic",
+  "work": 1218,
+  "cost": 23,
+  "costSpread": 7,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "11144",
+   "11004",
+   "10044",
+   "20000",
+   "22233"
+  ],
+  "band": "compound arithmetic",
+  "work": 1404,
   "cost": 22,
   "costSpread": 1,
   "peakLevel": 3,
@@ -361,28 +417,46 @@
  },
  {
   "shape": [
-   "00221",
-   "00221",
-   "00221",
-   "40411",
-   "44433"
+   "21111",
+   "20031",
+   "22334",
+   "22244",
+   "22444"
   ],
   "band": "compound arithmetic",
-  "cost": 23,
-  "costSpread": 4,
+  "work": 1623,
+  "cost": 27,
+  "costSpread": 0,
   "peakLevel": 3,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "44000",
-   "44000",
-   "41300",
-   "41333",
-   "41222"
+   "43333",
+   "43222",
+   "44011",
+   "00011",
+   "11111"
   ],
   "band": "compound arithmetic",
+  "work": 1865,
+  "cost": 19,
+  "costSpread": 3,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "11112",
+   "41112",
+   "44322",
+   "04332",
+   "03332"
+  ],
+  "band": "compound arithmetic",
+  "work": 2156,
   "cost": 25,
   "costSpread": 3,
   "peakLevel": 3,
@@ -391,194 +465,63 @@
  },
  {
   "shape": [
-   "11222",
-   "11000",
-   "41000",
-   "43300",
-   "44000"
-  ],
-  "band": "compound arithmetic",
-  "cost": 26,
-  "costSpread": 4,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "22222",
-   "22002",
-   "41000",
-   "41110",
-   "41333"
-  ],
-  "band": "compound arithmetic",
-  "cost": 28,
-  "costSpread": 4,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "33222",
-   "34222",
-   "34222",
-   "44210",
-   "44110"
-  ],
-  "band": "compound arithmetic",
-  "cost": 30,
-  "costSpread": 3,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "11133",
-   "11132",
-   "11142",
-   "04442",
+   "11122",
+   "11122",
+   "11342",
+   "33342",
    "00002"
   ],
   "band": "compound arithmetic",
-  "cost": 39,
-  "costSpread": 6,
+  "work": 2482,
+  "cost": 24,
+  "costSpread": 3,
   "peakLevel": 3,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "00233",
-   "10233",
-   "11244",
-   "11444",
-   "11444"
+   "34442",
+   "34222",
+   "33321",
+   "33021",
+   "30000"
   ],
-  "band": "deep arithmetic",
-  "cost": 16,
-  "costSpread": 1,
-  "peakLevel": 4,
+  "band": "compound arithmetic",
+  "work": 2874,
+  "cost": 29,
+  "costSpread": 3,
+  "peakLevel": 3,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "22224",
-   "22444",
-   "33344",
-   "01144",
-   "00114"
+   "33444",
+   "34444",
+   "24400",
+   "22200",
+   "21100"
   ],
-  "band": "deep arithmetic",
-  "cost": 21,
-  "costSpread": 2,
-  "peakLevel": 4,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "44000",
-   "44000",
-   "44430",
-   "12233",
-   "12233"
-  ],
-  "band": "deep arithmetic",
-  "cost": 23,
-  "costSpread": 2,
-  "peakLevel": 4,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "22333",
-   "22333",
-   "00411",
-   "44411",
-   "44111"
-  ],
-  "band": "deep arithmetic",
-  "cost": 25,
-  "costSpread": 4,
-  "peakLevel": 4,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "22222",
-   "21224",
-   "11004",
-   "11344",
-   "11333"
-  ],
-  "band": "deep arithmetic",
-  "cost": 27,
-  "costSpread": 4,
-  "peakLevel": 4,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "33333",
-   "02131",
-   "02111",
-   "01144",
-   "00144"
-  ],
-  "band": "deep arithmetic",
-  "cost": 28,
-  "costSpread": 4,
-  "peakLevel": 4,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "11344",
-   "12344",
-   "22440",
-   "22440",
-   "22000"
-  ],
-  "band": "deep arithmetic",
+  "band": "compound arithmetic",
+  "work": 3304,
   "cost": 30,
-  "costSpread": 10,
-  "peakLevel": 4,
+  "costSpread": 0,
+  "peakLevel": 3,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "44433",
-   "44433",
-   "11403",
-   "10003",
-   "00022"
+   "44423",
+   "41223",
+   "11220",
+   "11100",
+   "11100"
   ],
   "band": "deep arithmetic",
-  "cost": 31,
-  "costSpread": 1,
-  "peakLevel": 4,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "24444",
-   "22400",
-   "21400",
-   "31100",
-   "33300"
-  ],
-  "band": "deep arithmetic",
-  "cost": 34,
+  "work": 3771,
+  "cost": 27,
   "costSpread": 3,
   "peakLevel": 4,
   "cases": 0,
@@ -586,63 +529,163 @@
  },
  {
   "shape": [
-   "11133",
-   "10133",
-   "00433",
-   "22444",
-   "24444"
+   "00044",
+   "00044",
+   "33333",
+   "11333",
+   "11122"
   ],
   "band": "deep arithmetic",
-  "cost": 40,
-  "costSpread": 0,
+  "work": 4377,
+  "cost": 23,
+  "costSpread": 1,
   "peakLevel": 4,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "32224",
-   "33424",
-   "43444",
-   "44441",
-   "00001"
+   "11140",
+   "11440",
+   "21443",
+   "22433",
+   "22433"
   ],
-  "band": "one case split",
-  "cost": 21,
-  "costSpread": 1,
-  "peakLevel": 3,
-  "cases": 1,
-  "arithmeticCells": 15
+  "band": "deep arithmetic",
+  "work": 5084,
+  "cost": 29,
+  "costSpread": 3,
+  "peakLevel": 4,
+  "cases": 0,
+  "arithmeticCells": 25
  },
  {
   "shape": [
-   "22111",
-   "22241",
-   "22444",
-   "00444",
-   "04443"
+   "42000",
+   "42000",
+   "44440",
+   "44441",
+   "33331"
   ],
   "band": "one case split",
-  "cost": 23,
-  "costSpread": 6,
-  "peakLevel": 3,
+  "work": 5873,
+  "cost": 20,
+  "costSpread": 0,
+  "peakLevel": 6,
   "cases": 1,
   "arithmeticCells": 17
  },
  {
   "shape": [
-   "11110",
-   "14220",
-   "14200",
-   "44300",
-   "33300"
+   "44441",
+   "44000",
+   "22000",
+   "22200",
+   "22333"
   ],
   "band": "one case split",
+  "work": 6784,
   "cost": 26,
-  "costSpread": 2,
-  "peakLevel": 3,
+  "costSpread": 3,
+  "peakLevel": 6,
   "cases": 1,
-  "arithmeticCells": 9
+  "arithmeticCells": 17
+ },
+ {
+  "shape": [
+   "00133",
+   "01113",
+   "00112",
+   "00122",
+   "40222"
+  ],
+  "band": "one case split",
+  "work": 7807,
+  "cost": 15,
+  "costSpread": 3,
+  "peakLevel": 6,
+  "cases": 1,
+  "arithmeticCells": 13
+ },
+ {
+  "shape": [
+   "33332",
+   "44311",
+   "43311",
+   "40010",
+   "40000"
+  ],
+  "band": "one case split",
+  "work": 9075,
+  "cost": 18,
+  "costSpread": 4,
+  "peakLevel": 6,
+  "cases": 1,
+  "arithmeticCells": 14
+ },
+ {
+  "shape": [
+   "11100",
+   "11200",
+   "14220",
+   "14422",
+   "34422"
+  ],
+  "band": "one case split",
+  "work": 10180,
+  "cost": 20,
+  "costSpread": 1,
+  "peakLevel": 6,
+  "cases": 1,
+  "arithmeticCells": 13
+ },
+ {
+  "shape": [
+   "33200",
+   "33201",
+   "34211",
+   "44441",
+   "44441"
+  ],
+  "band": "deep arithmetic",
+  "work": 11887,
+  "cost": 27,
+  "costSpread": 3,
+  "peakLevel": 4,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "12222",
+   "11440",
+   "11300",
+   "13303",
+   "33333"
+  ],
+  "band": "one case split",
+  "work": 13897,
+  "cost": 26,
+  "costSpread": 7,
+  "peakLevel": 6,
+  "cases": 1,
+  "arithmeticCells": 11
+ },
+ {
+  "shape": [
+   "11102",
+   "10003",
+   "11033",
+   "14443",
+   "14433"
+  ],
+  "band": "several case splits",
+  "work": 16170,
+  "cost": 29,
+  "costSpread": 0,
+  "peakLevel": 6,
+  "cases": 2,
+  "arithmeticCells": 12
  },
  {
   "shape": [
@@ -653,221 +696,236 @@
    "21111"
   ],
   "band": "one case split",
+  "work": 18487,
   "cost": 28,
   "costSpread": 3,
-  "peakLevel": 3,
+  "peakLevel": 6,
   "cases": 1,
   "arithmeticCells": 14
  },
  {
   "shape": [
-   "33222",
-   "13420",
-   "13420",
-   "33320",
-   "33000"
+   "00444",
+   "01443",
+   "11133",
+   "11133",
+   "22133"
   ],
   "band": "one case split",
-  "cost": 32,
-  "costSpread": 5,
-  "peakLevel": 4,
-  "cases": 1,
-  "arithmeticCells": 14
- },
- {
-  "shape": [
-   "24444",
-   "22244",
-   "32211",
-   "30011",
-   "33311"
-  ],
-  "band": "one case split",
-  "cost": 33,
-  "costSpread": 3,
-  "peakLevel": 3,
-  "cases": 1,
-  "arithmeticCells": 13
- },
- {
-  "shape": [
-   "00034",
-   "01134",
-   "01444",
-   "11222",
-   "11222"
-  ],
-  "band": "one case split",
-  "cost": 34,
-  "costSpread": 6,
-  "peakLevel": 3,
-  "cases": 1,
-  "arithmeticCells": 10
- },
- {
-  "shape": [
-   "44211",
-   "44211",
-   "33211",
-   "00221",
-   "00000"
-  ],
-  "band": "one case split",
-  "cost": 35,
-  "costSpread": 3,
-  "peakLevel": 4,
-  "cases": 1,
-  "arithmeticCells": 12
- },
- {
-  "shape": [
-   "11000",
-   "11111",
-   "11441",
-   "22244",
-   "23334"
-  ],
-  "band": "one case split",
+  "work": 21385,
   "cost": 37,
-  "costSpread": 3,
-  "peakLevel": 4,
+  "costSpread": 1,
+  "peakLevel": 6,
   "cases": 1,
-  "arithmeticCells": 17
+  "arithmeticCells": 14
  },
  {
   "shape": [
-   "00033",
-   "01003",
-   "21133",
-   "22134",
-   "44444"
-  ],
-  "band": "one case split",
-  "cost": 38,
-  "costSpread": 9,
-  "peakLevel": 3,
-  "cases": 1,
-  "arithmeticCells": 2
- },
- {
-  "shape": [
-   "30002",
-   "31000",
-   "31100",
-   "31444",
-   "33444"
+   "00433",
+   "00443",
+   "04433",
+   "11133",
+   "11112"
   ],
   "band": "several case splits",
-  "cost": 18,
+  "work": 24765,
+  "cost": 32,
   "costSpread": 1,
-  "peakLevel": 2,
+  "peakLevel": 6,
   "cases": 2,
   "arithmeticCells": 12
  },
  {
   "shape": [
-   "11140",
-   "11140",
-   "31442",
-   "34422",
-   "33422"
+   "03442",
+   "03344",
+   "03444",
+   "03414",
+   "01111"
   ],
   "band": "several case splits",
-  "cost": 27,
+  "work": 28607,
+  "cost": 23,
   "costSpread": 1,
-  "peakLevel": 3,
+  "peakLevel": 6,
+  "cases": 3,
+  "arithmeticCells": 12
+ },
+ {
+  "shape": [
+   "00122",
+   "00112",
+   "03412",
+   "03442",
+   "44422"
+  ],
+  "band": "several case splits",
+  "work": 32683,
+  "cost": 31,
+  "costSpread": 3,
+  "peakLevel": 6,
+  "cases": 2,
+  "arithmeticCells": 10
+ },
+ {
+  "shape": [
+   "44444",
+   "00034",
+   "10334",
+   "11344",
+   "11322"
+  ],
+  "band": "several case splits",
+  "work": 37787,
+  "cost": 24,
+  "costSpread": 1,
+  "peakLevel": 6,
   "cases": 2,
   "arithmeticCells": 9
  },
  {
   "shape": [
-   "03333",
-   "04331",
-   "44431",
-   "42441",
-   "22111"
+   "30000",
+   "31100",
+   "31120",
+   "33424",
+   "33444"
   ],
   "band": "several case splits",
-  "cost": 27,
-  "costSpread": 4,
-  "peakLevel": 4,
-  "cases": 2,
+  "work": 43757,
+  "cost": 40,
+  "costSpread": 3,
+  "peakLevel": 6,
+  "cases": 3,
   "arithmeticCells": 10
  },
  {
   "shape": [
-   "33333",
-   "02244",
-   "02444",
-   "12224",
-   "11224"
+   "44400",
+   "41203",
+   "41203",
+   "11103",
+   "11133"
   ],
   "band": "several case splits",
-  "cost": 29,
-  "costSpread": 3,
-  "peakLevel": 3,
-  "cases": 2,
-  "arithmeticCells": 14
+  "work": 50248,
+  "cost": 42,
+  "costSpread": 8,
+  "peakLevel": 6,
+  "cases": 3,
+  "arithmeticCells": 7
  },
  {
   "shape": [
-   "44400",
-   "44441",
-   "22221",
-   "33331",
-   "33311"
+   "22000",
+   "40030",
+   "44330",
+   "44331",
+   "11111"
   ],
   "band": "several case splits",
-  "cost": 32,
-  "costSpread": 1,
-  "peakLevel": 4,
-  "cases": 3,
+  "work": 58131,
+  "cost": 38,
+  "costSpread": 3,
+  "peakLevel": 6,
+  "cases": 2,
   "arithmeticCells": 8
  },
  {
   "shape": [
-   "40022",
-   "44002",
-   "00002",
-   "30112",
-   "33111"
+   "44422",
+   "44222",
+   "11122",
+   "10323",
+   "00333"
   ],
   "band": "several case splits",
-  "cost": 33,
+  "work": 66566,
+  "cost": 30,
   "costSpread": 2,
-  "peakLevel": 4,
+  "peakLevel": 6,
   "cases": 3,
+  "arithmeticCells": 7
+ },
+ {
+  "shape": [
+   "22111",
+   "32241",
+   "33441",
+   "03333",
+   "00033"
+  ],
+  "band": "several case splits",
+  "work": 77302,
+  "cost": 43,
+  "costSpread": 2,
+  "peakLevel": 6,
+  "cases": 4,
+  "arithmeticCells": 4
+ },
+ {
+  "shape": [
+   "10222",
+   "10242",
+   "10442",
+   "00343",
+   "33333"
+  ],
+  "band": "several case splits",
+  "work": 89629,
+  "cost": 32,
+  "costSpread": 1,
+  "peakLevel": 6,
+  "cases": 4,
   "arithmeticCells": 5
  },
  {
   "shape": [
-   "11111",
-   "21000",
-   "22043",
-   "22443",
-   "22333"
+   "00111",
+   "00004",
+   "03344",
+   "03224",
+   "22244"
   ],
   "band": "several case splits",
-  "cost": 37,
-  "costSpread": 1,
-  "peakLevel": 4,
-  "cases": 3,
-  "arithmeticCells": 6
+  "work": 104136,
+  "cost": 44,
+  "costSpread": 5,
+  "peakLevel": 6,
+  "cases": 5,
+  "arithmeticCells": 3
  },
  {
   "shape": [
-   "12222",
-   "11122",
-   "13330",
-   "10000",
-   "44000"
+   "44400",
+   "43200",
+   "33201",
+   "32201",
+   "32001"
   ],
   "band": "several case splits",
-  "cost": 38,
+  "work": 123038,
+  "cost": 41,
   "costSpread": 2,
-  "peakLevel": 3,
-  "cases": 3,
-  "arithmeticCells": 7
+  "peakLevel": 6,
+  "cases": 5,
+  "arithmeticCells": 3
+ },
+ {
+  "shape": [
+   "13444",
+   "13004",
+   "13044",
+   "23002",
+   "22222"
+  ],
+  "band": "several case splits",
+  "work": 137964,
+  "cost": 43,
+  "costSpread": 1,
+  "peakLevel": 6,
+  "cases": 6,
+  "arithmeticCells": 4
  },
  {
   "shape": [
@@ -878,25 +936,27 @@
    "11133"
   ],
   "band": "several case splits",
-  "cost": 45,
-  "costSpread": 2,
-  "peakLevel": 3,
+  "work": 157214,
+  "cost": 44,
+  "costSpread": 4,
+  "peakLevel": 6,
   "cases": 6,
   "arithmeticCells": 0
  },
  {
   "shape": [
-   "22444",
-   "22004",
-   "12004",
-   "12134",
-   "11133"
+   "00111",
+   "03311",
+   "03111",
+   "22224",
+   "22444"
   ],
   "band": "several case splits",
-  "cost": 49,
-  "costSpread": 2,
-  "peakLevel": 4,
+  "work": 183191,
+  "cost": 44,
+  "costSpread": 4,
+  "peakLevel": 6,
   "cases": 6,
-  "arithmeticCells": 3
+  "arithmeticCells": 1
  }
 ]

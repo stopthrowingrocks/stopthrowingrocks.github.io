@@ -50,3 +50,29 @@ test('a board solved by arithmetic alone argues no cases', () => {
   assert.ok(run.solved);
   assert.equal(run.cases, 0, '#3 should not need a case split');
 });
+
+test('search work is counted per tool and totals them', () => {
+  const run = prove(HARD, initState(HARD), {});
+  assert.ok(run.solved);
+  assert.ok(run.work > 0, 'proving a board examines candidates');
+  const summed = Object.values(run.workByTool).reduce((a, b) => a + b, 0);
+  assert.equal(run.work, summed, 'the total is the sum over tools');
+  assert.ok('forced' in run.workByTool, `every board sweeps the fact pool: ${Object.keys(run.workByTool)}`);
+});
+
+test('a board needing combined facts takes more sifting than one that does not', () => {
+  const easy = prove(EASY, initState(EASY), {});
+  const hard = prove(HARD, initState(HARD), {});
+  assert.ok(hard.work > easy.work,
+    `#1 needs combined facts so should cost more search than #3: ${hard.work} vs ${easy.work}`);
+});
+
+test('search work barely moves when the order of equals does', () => {
+  // Cost moves with the shuffle on 89% of boards; work on 9%. That gap is the whole reason
+  // difficulty is measured in candidates examined rather than in statements written.
+  const runs = [0, 1, 2, 3].map(seed => prove(HARD, initState(HARD), { shuffleSeed: seed * 7919 + 1 }));
+  for (const run of runs) assert.ok(run.solved);
+  const works = runs.map(r => r.work);
+  const ratio = Math.max(...works) / Math.min(...works);
+  assert.ok(ratio < 1.5, `work should be near-deterministic, got ${works.join(', ')}`);
+});
