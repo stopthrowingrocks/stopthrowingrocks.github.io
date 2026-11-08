@@ -127,7 +127,7 @@ export function boardCliques(puzzle: Puzzle): number[][] {
 const hasUpper = (op: FactOp): boolean => op === '=' || op === '<=';
 const hasLower = (op: FactOp): boolean => op === '=' || op === '>=';
 
-function leavesOf(puzzle: Puzzle, state: PState): Leaf[] {
+function leavesOf(puzzle: Puzzle, state: PState, shuffleSeed?: number): Leaf[] {
   const leaves: Leaf[] = state.facts
     .filter(fact => fact.op !== '!=')
     .map(fact => ({
@@ -154,7 +154,7 @@ function leavesOf(puzzle: Puzzle, state: PState): Leaf[] {
   }
   // `cost` above counts the leaf itself; a bare reference is free, a clique costs one.
   for (const leaf of leaves) leaf.cost = leaf.expr.kind === 'ref' ? 0 : 1;
-  return leaves;
+  return shuffleSeed === undefined ? leaves : shuffleWith(leaves, shuffleSeed);
 }
 
 // ── Moves ───────────────────────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ export const boardAdvancingMoves: MoveGenerator = (puzzle, state, options) => {
   // operators; subtracting a sum of n more costs another n.
   const maxStatementCost = options.maxStatementCost ?? 5;
   const before = resolved(state);
-  const leaves = leavesOf(puzzle, state);
+  const leaves = leavesOf(puzzle, state, options.shuffleLeaves);
   const seen = new Map<string, {
     type: 'stars' | 'elims'; expr: HypExpr; cost: number; cells: number[]; reads: Set<number>;
   }>();
@@ -379,9 +379,13 @@ const tilingRank = (tiling: number[][]): string =>
  * Only the best tiling per fact is offered. Where several exist they tend to cascade the
  * same way, and preferring the smallest parts picks the same decomposition a person does.
  */
-export const splitMoves: MoveGenerator = (puzzle, state) => {
+export const splitMoves: MoveGenerator = (puzzle, state, options) => {
   const moves: Move[] = [];
-  for (const fact of state.facts) {
+  const facts = options.shuffleLeaves === undefined
+    ? state.facts
+    : shuffleWith(state.facts, options.shuffleLeaves);
+  tally(options.probe, 'split', facts.length);
+  for (const fact of facts) {
     // Splitting needs an exact count or a lower bound, and at least two parts to be worth it.
     if (fact.op !== '=' && fact.op !== '>=') continue;
     if (fact.target < 2 || fact.cells.length <= fact.target) continue;
@@ -541,12 +545,33 @@ export function tally(probe: WorkProbe | undefined, tool: string, n = 1): void {
 export const probeTotal = (probe: WorkProbe): number =>
   [...probe.tried.values()].reduce((a, b) => a + b, 0);
 
+/** Deterministic shuffle from a seed — for perturbing a search, not for cryptography. */
+export function shuffleWith<T>(items: T[], seed: number): T[] {
+  const out = items.slice();
+  let x = (seed * 2654435761) >>> 0 || 1;
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    x = (x * 1664525 + 1013904223) >>> 0;
+    const j = x % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 export interface SearchOptions {
   /** Reached the target? Defaults to "every cell proven". */
   goal?: (state: PState) => boolean;
   generators?: MoveGenerator[];
   /** Collects candidates examined per tool. Measurement only — no effect on what is found. */
   probe?: WorkProbe;
+  /**
+   * Shuffle the hypothesis and clique pool before enumerating from it.
+   *
+   * A stronger perturbation than reordering the moves a sweep returns. An exhaustive sweep
+   * examines the same candidates whatever order it walks them in, so its work count cannot
+   * move; the signed beam, which keeps only its best 24 partials, can find different things
+   * entirely. This is the lever for asking how much of a work figure is the board.
+   */
+  shuffleLeaves?: number;
   /**
    * The most one statement may cost. There is no separate limit on operators — combining
    * more facts simply costs more, and this is where that stops.

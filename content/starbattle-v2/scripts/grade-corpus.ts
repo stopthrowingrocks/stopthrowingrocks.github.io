@@ -35,6 +35,7 @@ const shapes: string[][] = loaded.map(entry =>
   Array.isArray(entry) ? entry as string[] : (entry as { shape: string[] }).shape);
 const pick = Number(flag('--pick') ?? 0);
 const runs = Number(flag('--runs') ?? 3);
+const greedy = args.includes('--greedy');
 
 const asPuzzle = (shape: string[], index: number): Puzzle =>
   parseLevels([{
@@ -61,7 +62,15 @@ interface Graded {
   band: typeof BANDS[number];
   /** Candidates examined to find the proof: the difficulty measure. */
   work: number;
-  /** Median cost over the shuffled runs — what the proof costs to write, not to find. */
+  /** max/min across the runs. 1.00 on arithmetic boards; up to 2 once cases are argued. */
+  workSpread: number;
+  /**
+   * Median cost over the shuffled runs — what the proof costs to write, not to find.
+   *
+   * Unpruned, so it runs about 27% above the cost of the same proof with its redundant
+   * statements delta-debugged out (see `prune`). It is a label here, not the ranking, so the
+   * inflation is uniform and harmless; anything comparing proof lengths should prune first.
+   */
   cost: number;
   /** How far the shuffle moved the cost, so a reader knows what the median is worth. */
   costSpread: number;
@@ -88,10 +97,21 @@ const started = Date.now();
 shapes.forEach((shape, index) => {
   const puzzle = asPuzzle(shape, index);
   // How far arithmetic alone gets, before asking whether a case is needed at all.
-  const arithmetic = prove(puzzle, initState(puzzle), { noCases: true, timeLimitMs: 20000 });
+  const arithmetic = prove(puzzle, initState(puzzle), { noCases: true, greedy, timeLimitMs: 20000 });
   // Then the whole proof, several times over, each with a different order among equals.
+  // The pool is shuffled as well as the move order. Reordering moves alone cannot move the
+  // work figure at all on an arithmetic-only board — an exhaustive sweep examines the same
+  // candidates whatever order it walks them in — so a median over that perturbation would be
+  // a median over identical numbers. Shuffling the hypothesis and clique pool reaches the
+  // signed beam and the case finder, which is where work actually varies: nothing below
+  // `deep arithmetic` moves at all, while a case-split board can swing by 2x.
   const attempts = Array.from({ length: runs }, (_, seed) =>
-    prove(puzzle, initState(puzzle), { shuffleSeed: seed * 7919 + 1, timeLimitMs: 30000 }));
+    prove(puzzle, initState(puzzle), {
+      shuffleSeed: seed * 7919 + 1,
+      shuffleLeaves: seed * 7919 + 1,
+      greedy,
+      timeLimitMs: 30000,
+    }));
   const done = attempts.filter(a => isSolved(a.state));
   const best = done.length ? done : attempts;
   const costs = best.map(a => a.cost).sort((a, b) => a - b);
@@ -104,6 +124,7 @@ shapes.forEach((shape, index) => {
     index, shape,
     band: bandOf(easiest.peakLevel, easiest.cases),
     work: works[Math.floor(works.length / 2)],
+    workSpread: works[0] ? works[works.length - 1] / works[0] : 1,
     cost: costs[Math.floor(costs.length / 2)],
     costSpread: costs[costs.length - 1] - costs[0],
     steps: easiest.blocks.length,
@@ -174,7 +195,8 @@ if (pick) {
   const unique = chosen.sort((a, b) => a.work - b.work);
   console.log(`\npicked ${unique.length}, spread evenly in log search work:`);
   for (const g of unique) {
-    console.log(`  #${String(g.index + 1).padStart(4)}  work ${String(g.work).padStart(7)}  ` +
+    console.log(`  #${String(g.index + 1).padStart(4)}  work ${String(g.work).padStart(7)}` +
+      `${g.workSpread > 1.01 ? ` x${g.workSpread.toFixed(2)}` : '      '}  ` +
       `cost ${String(g.cost).padStart(3)}  ${g.band.padEnd(20)}` +
       (g.cases ? `  arithmetic stalls at ${g.arithmeticCells}/${g.cells}` : ''));
   }
@@ -186,7 +208,8 @@ if (pick) {
     // Written with the grades attached: a bare list of regions would lose the only thing
     // that makes this a corpus rather than a pile of layouts.
     writeFileSync(out, `${JSON.stringify(unique.map(g => ({
-      shape: g.shape, band: g.band, work: g.work, cost: g.cost, costSpread: g.costSpread,
+      shape: g.shape, band: g.band, work: g.work, workSpread: Number(g.workSpread.toFixed(2)),
+      cost: g.cost, costSpread: g.costSpread,
       peakLevel: g.peakLevel, cases: g.cases, arithmeticCells: g.arithmeticCells,
     })), null, 1)}\n`, 'utf8');
     console.log(`\nwrote ${unique.length} graded layouts to ${out}`);

@@ -1,7 +1,7 @@
 import { applyStep } from './engine';
 import { neighbors } from './puzzles';
 import type { Block, FactOp, HypExpr, PState, Puzzle } from './types';
-import { exprCost, tally, type Move, type MoveGenerator, type SearchOptions } from './search';
+import { exprCost, shuffleWith, tally, type Move, type MoveGenerator, type SearchOptions } from './search';
 
 /**
  * A move constructor that eliminates rather than enumerates.
@@ -100,7 +100,7 @@ function boardCliques(puzzle: Puzzle): number[][] {
   return found;
 }
 
-function leavesOf(puzzle: Puzzle, state: PState, words: number): SignedLeaf[] {
+function leavesOf(puzzle: Puzzle, state: PState, words: number, shuffleSeed?: number): SignedLeaf[] {
   const leaves: SignedLeaf[] = [];
   for (const fact of state.facts) {
     if (fact.op === '!=') continue;
@@ -121,7 +121,7 @@ function leavesOf(puzzle: Puzzle, state: PState, words: number): SignedLeaf[] {
       mask, cells, op: '<=', target: 1, cost: 1,
     });
   }
-  return leaves;
+  return shuffleSeed === undefined ? leaves : shuffleWith(leaves, shuffleSeed);
 }
 
 // ── Elimination ─────────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ export interface SignedOptions extends SearchOptions {
  */
 export const signedMoves: MoveGenerator = (puzzle, state, options: SignedOptions = {}) => {
   const words = Math.ceil((puzzle.size * puzzle.size) / 32);
-  const leaves = leavesOf(puzzle, state, words);
+  const leaves = leavesOf(puzzle, state, words, options.shuffleLeaves);
   const ceiling = options.maxStatementCost ?? 5;
   const beamWidth = options.beamWidth ?? 24;
   const before = state.cells.reduce((n, c) => n + (c === null ? 0 : 1), 0);

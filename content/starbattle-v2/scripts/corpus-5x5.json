@@ -9,6 +9,7 @@
   ],
   "band": "forced only",
   "work": 39,
+  "workSpread": 1,
   "cost": 10,
   "costSpread": 2,
   "peakLevel": 1,
@@ -25,6 +26,7 @@
   ],
   "band": "forced only",
   "work": 45,
+  "workSpread": 1,
   "cost": 9,
   "costSpread": 2,
   "peakLevel": 1,
@@ -41,6 +43,7 @@
   ],
   "band": "forced only",
   "work": 52,
+  "workSpread": 1,
   "cost": 12,
   "costSpread": 1,
   "peakLevel": 1,
@@ -57,6 +60,7 @@
   ],
   "band": "forced only",
   "work": 60,
+  "workSpread": 1,
   "cost": 9,
   "costSpread": 0,
   "peakLevel": 1,
@@ -73,6 +77,7 @@
   ],
   "band": "forced only",
   "work": 69,
+  "workSpread": 1,
   "cost": 10,
   "costSpread": 1,
   "peakLevel": 1,
@@ -89,6 +94,7 @@
   ],
   "band": "forced only",
   "work": 78,
+  "workSpread": 1,
   "cost": 10,
   "costSpread": 1,
   "peakLevel": 1,
@@ -105,6 +111,7 @@
   ],
   "band": "forced only",
   "work": 78,
+  "workSpread": 1,
   "cost": 11,
   "costSpread": 1,
   "peakLevel": 1,
@@ -121,6 +128,7 @@
   ],
   "band": "forced only",
   "work": 78,
+  "workSpread": 1,
   "cost": 10,
   "costSpread": 1,
   "peakLevel": 1,
@@ -136,7 +144,8 @@
    "02222"
   ],
   "band": "one-step arithmetic",
-  "work": 167,
+  "work": 176,
+  "workSpread": 1,
   "cost": 13,
   "costSpread": 1,
   "peakLevel": 2,
@@ -152,7 +161,8 @@
    "44411"
   ],
   "band": "one-step arithmetic",
-  "work": 171,
+  "work": 180,
+  "workSpread": 1,
   "cost": 13,
   "costSpread": 0,
   "peakLevel": 2,
@@ -168,7 +178,8 @@
    "43332"
   ],
   "band": "one-step arithmetic",
-  "work": 175,
+  "work": 187,
+  "workSpread": 1,
   "cost": 11,
   "costSpread": 0,
   "peakLevel": 2,
@@ -177,15 +188,16 @@
  },
  {
   "shape": [
-   "21144",
-   "21114",
-   "22314",
-   "00011",
-   "00011"
+   "22221",
+   "33221",
+   "33021",
+   "33444",
+   "33444"
   ],
   "band": "one-step arithmetic",
-  "work": 188,
-  "cost": 11,
+  "work": 195,
+  "workSpread": 1,
+  "cost": 12,
   "costSpread": 1,
   "peakLevel": 2,
   "cases": 0,
@@ -193,16 +205,17 @@
  },
  {
   "shape": [
-   "00003",
-   "00113",
-   "04211",
-   "22212",
-   "22222"
+   "11444",
+   "11000",
+   "13000",
+   "33200",
+   "33333"
   ],
   "band": "one-step arithmetic",
-  "work": 218,
-  "cost": 14,
-  "costSpread": 0,
+  "work": 225,
+  "workSpread": 1,
+  "cost": 12,
+  "costSpread": 1,
   "peakLevel": 2,
   "cases": 0,
   "arithmeticCells": 25
@@ -216,7 +229,8 @@
    "00043"
   ],
   "band": "one-step arithmetic",
-  "work": 245,
+  "work": 257,
+  "workSpread": 1,
   "cost": 14,
   "costSpread": 0,
   "peakLevel": 2,
@@ -225,30 +239,32 @@
  },
  {
   "shape": [
-   "22222",
-   "00221",
-   "00233",
-   "40233",
-   "40233"
+   "22244",
+   "22443",
+   "21413",
+   "21113",
+   "22033"
   ],
   "band": "one-step arithmetic",
-  "work": 289,
-  "cost": 13,
-  "costSpread": 1,
+  "work": 303,
+  "workSpread": 1,
+  "cost": 16,
+  "costSpread": 0,
   "peakLevel": 2,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "41002",
-   "40032",
-   "40033",
-   "40033",
-   "40333"
+   "22200",
+   "22300",
+   "22330",
+   "22331",
+   "24311"
   ],
   "band": "compound arithmetic",
-  "work": 331,
+  "work": 350,
+  "workSpread": 1,
   "cost": 16,
   "costSpread": 0,
   "peakLevel": 3,
@@ -257,17 +273,18 @@
  },
  {
   "shape": [
-   "11110",
-   "12114",
-   "22224",
-   "22244",
-   "33344"
+   "22000",
+   "22030",
+   "22430",
+   "44433",
+   "44133"
   ],
-  "band": "one-step arithmetic",
-  "work": 384,
-  "cost": 13,
-  "costSpread": 2,
-  "peakLevel": 2,
+  "band": "compound arithmetic",
+  "work": 405,
+  "workSpread": 1,
+  "cost": 17,
+  "costSpread": 0,
+  "peakLevel": 3,
   "cases": 0,
   "arithmeticCells": 25
  },
@@ -280,7 +297,8 @@
    "00000"
   ],
   "band": "compound arithmetic",
-  "work": 434,
+  "work": 464,
+  "workSpread": 1,
   "cost": 16,
   "costSpread": 1,
   "peakLevel": 3,
@@ -296,24 +314,26 @@
    "22242"
   ],
   "band": "compound arithmetic",
-  "work": 512,
-  "cost": 22,
-  "costSpread": 0,
+  "work": 542,
+  "workSpread": 1,
+  "cost": 19,
+  "costSpread": 3,
   "peakLevel": 3,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "22204",
-   "31104",
-   "31144",
-   "11144",
-   "11111"
+   "11000",
+   "11200",
+   "12220",
+   "11324",
+   "11334"
   ],
   "band": "one-step arithmetic",
-  "work": 600,
-  "cost": 14,
+  "work": 629,
+  "workSpread": 1,
+  "cost": 11,
   "costSpread": 1,
   "peakLevel": 2,
   "cases": 0,
@@ -328,9 +348,10 @@
    "11100"
   ],
   "band": "compound arithmetic",
-  "work": 676,
-  "cost": 22,
-  "costSpread": 3,
+  "work": 712,
+  "workSpread": 1,
+  "cost": 23,
+  "costSpread": 5,
   "peakLevel": 3,
   "cases": 0,
   "arithmeticCells": 25
@@ -338,141 +359,31 @@
  {
   "shape": [
    "44444",
-   "44440",
-   "12200",
-   "11100",
-   "11330"
+   "14420",
+   "33420",
+   "33220",
+   "33300"
   ],
   "band": "compound arithmetic",
-  "work": 790,
-  "cost": 19,
-  "costSpread": 1,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "33322",
-   "33322",
-   "31112",
-   "31442",
-   "04422"
-  ],
-  "band": "compound arithmetic",
-  "work": 913,
-  "cost": 20,
-  "costSpread": 4,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "13322",
-   "11122",
-   "01000",
-   "00004",
-   "44444"
-  ],
-  "band": "one-step arithmetic",
-  "work": 1053,
-  "cost": 14,
-  "costSpread": 1,
-  "peakLevel": 2,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "11111",
-   "10044",
-   "10004",
-   "13324",
-   "11324"
-  ],
-  "band": "compound arithmetic",
-  "work": 1218,
-  "cost": 23,
-  "costSpread": 7,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "11144",
-   "11004",
-   "10044",
-   "20000",
-   "22233"
-  ],
-  "band": "compound arithmetic",
-  "work": 1404,
+  "work": 845,
+  "workSpread": 1,
   "cost": 22,
-  "costSpread": 1,
+  "costSpread": 3,
   "peakLevel": 3,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "21111",
-   "20031",
-   "22334",
    "22244",
-   "22444"
+   "22201",
+   "20001",
+   "20031",
+   "23331"
   ],
   "band": "compound arithmetic",
-  "work": 1623,
-  "cost": 27,
-  "costSpread": 0,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "43333",
-   "43222",
-   "44011",
-   "00011",
-   "11111"
-  ],
-  "band": "compound arithmetic",
-  "work": 1865,
-  "cost": 19,
-  "costSpread": 3,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "11112",
-   "41112",
-   "44322",
-   "04332",
-   "03332"
-  ],
-  "band": "compound arithmetic",
-  "work": 2156,
-  "cost": 25,
-  "costSpread": 3,
-  "peakLevel": 3,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "11122",
-   "11122",
-   "11342",
-   "33342",
-   "00002"
-  ],
-  "band": "compound arithmetic",
-  "work": 2482,
+  "work": 975,
+  "workSpread": 1,
   "cost": 24,
   "costSpread": 3,
   "peakLevel": 3,
@@ -481,15 +392,67 @@
  },
  {
   "shape": [
-   "34442",
-   "34222",
-   "33321",
-   "33021",
-   "30000"
+   "33300",
+   "34000",
+   "34101",
+   "24111",
+   "22111"
+  ],
+  "band": "one-step arithmetic",
+  "work": 1128,
+  "workSpread": 1,
+  "cost": 12,
+  "costSpread": 1,
+  "peakLevel": 2,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "44211",
+   "44221",
+   "44221",
+   "04441",
+   "00033"
   ],
   "band": "compound arithmetic",
-  "work": 2874,
-  "cost": 29,
+  "work": 1310,
+  "workSpread": 1,
+  "cost": 16,
+  "costSpread": 2,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "00000",
+   "11330",
+   "11130",
+   "44110",
+   "44220"
+  ],
+  "band": "compound arithmetic",
+  "work": 1505,
+  "workSpread": 1,
+  "cost": 23,
+  "costSpread": 1,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "22031",
+   "22031",
+   "22011",
+   "20011",
+   "24444"
+  ],
+  "band": "compound arithmetic",
+  "work": 1751,
+  "workSpread": 1,
+  "cost": 31,
   "costSpread": 3,
   "peakLevel": 3,
   "cases": 0,
@@ -497,30 +460,117 @@
  },
  {
   "shape": [
-   "33444",
-   "34444",
-   "24400",
-   "22200",
-   "21100"
+   "13333",
+   "11300",
+   "14322",
+   "14222",
+   "12222"
   ],
   "band": "compound arithmetic",
-  "work": 3304,
-  "cost": 30,
-  "costSpread": 0,
+  "work": 2036,
+  "workSpread": 1,
+  "cost": 32,
+  "costSpread": 3,
   "peakLevel": 3,
   "cases": 0,
   "arithmeticCells": 25
  },
  {
   "shape": [
-   "44423",
-   "41223",
-   "11220",
-   "11100",
-   "11100"
+   "22211",
+   "22310",
+   "23340",
+   "33344",
+   "34444"
+  ],
+  "band": "compound arithmetic",
+  "work": 2345,
+  "workSpread": 1,
+  "cost": 27,
+  "costSpread": 3,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "33222",
+   "30222",
+   "00022",
+   "44000",
+   "44111"
+  ],
+  "band": "compound arithmetic",
+  "work": 2714,
+  "workSpread": 1,
+  "cost": 21,
+  "costSpread": 3,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "00124",
+   "00124",
+   "32224",
+   "33324",
+   "33444"
+  ],
+  "band": "compound arithmetic",
+  "work": 3138,
+  "workSpread": 1,
+  "cost": 32,
+  "costSpread": 3,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "44411",
+   "40011",
+   "20313",
+   "20333",
+   "23333"
+  ],
+  "band": "compound arithmetic",
+  "work": 3608,
+  "workSpread": 1,
+  "cost": 30,
+  "costSpread": 3,
+  "peakLevel": 3,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "32222",
+   "33122",
+   "44100",
+   "44000",
+   "44400"
   ],
   "band": "deep arithmetic",
-  "work": 3771,
+  "work": 4228,
+  "workSpread": 1.01,
+  "cost": 29,
+  "costSpread": 3,
+  "peakLevel": 4,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "01112",
+   "00312",
+   "00322",
+   "44222",
+   "44442"
+  ],
+  "band": "deep arithmetic",
+  "work": 4873,
+  "workSpread": 1.03,
   "cost": 27,
   "costSpread": 3,
   "peakLevel": 4,
@@ -529,31 +579,16 @@
  },
  {
   "shape": [
-   "00044",
-   "00044",
-   "33333",
-   "11333",
-   "11122"
+   "11000",
+   "10000",
+   "22300",
+   "33330",
+   "34444"
   ],
   "band": "deep arithmetic",
-  "work": 4377,
-  "cost": 23,
-  "costSpread": 1,
-  "peakLevel": 4,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "11140",
-   "11440",
-   "21443",
-   "22433",
-   "22433"
-  ],
-  "band": "deep arithmetic",
-  "work": 5084,
-  "cost": 29,
+  "work": 5657,
+  "workSpread": 1.03,
+  "cost": 39,
   "costSpread": 3,
   "peakLevel": 4,
   "cases": 0,
@@ -561,15 +596,33 @@
  },
  {
   "shape": [
-   "42000",
-   "42000",
-   "44440",
-   "44441",
-   "33331"
+   "22344",
+   "22330",
+   "22330",
+   "12230",
+   "11200"
+  ],
+  "band": "deep arithmetic",
+  "work": 6539,
+  "workSpread": 1.04,
+  "cost": 28,
+  "costSpread": 5,
+  "peakLevel": 4,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "00004",
+   "00002",
+   "22332",
+   "22222",
+   "21111"
   ],
   "band": "one case split",
-  "work": 5873,
-  "cost": 20,
+  "work": 7559,
+  "workSpread": 1.12,
+  "cost": 26,
   "costSpread": 0,
   "peakLevel": 6,
   "cases": 1,
@@ -577,63 +630,84 @@
  },
  {
   "shape": [
-   "44441",
-   "44000",
-   "22000",
-   "22200",
-   "22333"
+   "10000",
+   "10030",
+   "10332",
+   "13322",
+   "14322"
   ],
   "band": "one case split",
-  "work": 6784,
-  "cost": 26,
-  "costSpread": 3,
-  "peakLevel": 6,
-  "cases": 1,
-  "arithmeticCells": 17
- },
- {
-  "shape": [
-   "00133",
-   "01113",
-   "00112",
-   "00122",
-   "40222"
-  ],
-  "band": "one case split",
-  "work": 7807,
-  "cost": 15,
-  "costSpread": 3,
-  "peakLevel": 6,
-  "cases": 1,
-  "arithmeticCells": 13
- },
- {
-  "shape": [
-   "33332",
-   "44311",
-   "43311",
-   "40010",
-   "40000"
-  ],
-  "band": "one case split",
-  "work": 9075,
-  "cost": 18,
-  "costSpread": 4,
+  "work": 8764,
+  "workSpread": 1.09,
+  "cost": 21,
+  "costSpread": 1,
   "peakLevel": 6,
   "cases": 1,
   "arithmeticCells": 14
  },
  {
   "shape": [
+   "33100",
    "11100",
-   "11200",
-   "14220",
-   "14422",
-   "34422"
+   "14400",
+   "44000",
+   "22222"
+  ],
+  "band": "deep arithmetic",
+  "work": 10167,
+  "workSpread": 1.09,
+  "cost": 33,
+  "costSpread": 1,
+  "peakLevel": 4,
+  "cases": 0,
+  "arithmeticCells": 25
+ },
+ {
+  "shape": [
+   "22222",
+   "22443",
+   "21113",
+   "20103",
+   "20003"
   ],
   "band": "one case split",
-  "work": 10180,
-  "cost": 20,
+  "work": 11660,
+  "workSpread": 1.15,
+  "cost": 24,
+  "costSpread": 2,
+  "peakLevel": 6,
+  "cases": 1,
+  "arithmeticCells": 14
+ },
+ {
+  "shape": [
+   "33444",
+   "30044",
+   "30024",
+   "33121",
+   "33111"
+  ],
+  "band": "one case split",
+  "work": 13734,
+  "workSpread": 1.09,
+  "cost": 29,
+  "costSpread": 3,
+  "peakLevel": 6,
+  "cases": 1,
+  "arithmeticCells": 14
+ },
+ {
+  "shape": [
+   "44442",
+   "14332",
+   "10332",
+   "10322",
+   "11322"
+  ],
+  "band": "one case split",
+  "work": 15457,
+  "workSpread": 1.1,
+  "cost": 32,
   "costSpread": 1,
   "peakLevel": 6,
   "cases": 1,
@@ -641,51 +715,20 @@
  },
  {
   "shape": [
-   "33200",
-   "33201",
-   "34211",
-   "44441",
-   "44441"
-  ],
-  "band": "deep arithmetic",
-  "work": 11887,
-  "cost": 27,
-  "costSpread": 3,
-  "peakLevel": 4,
-  "cases": 0,
-  "arithmeticCells": 25
- },
- {
-  "shape": [
-   "12222",
-   "11440",
-   "11300",
-   "13303",
-   "33333"
+   "44400",
+   "44330",
+   "44320",
+   "41221",
+   "11111"
   ],
   "band": "one case split",
-  "work": 13897,
-  "cost": 26,
-  "costSpread": 7,
+  "work": 18185,
+  "workSpread": 1.08,
+  "cost": 32,
+  "costSpread": 3,
   "peakLevel": 6,
   "cases": 1,
-  "arithmeticCells": 11
- },
- {
-  "shape": [
-   "11102",
-   "10003",
-   "11033",
-   "14443",
-   "14433"
-  ],
-  "band": "several case splits",
-  "work": 16170,
-  "cost": 29,
-  "costSpread": 0,
-  "peakLevel": 6,
-  "cases": 2,
-  "arithmeticCells": 12
+  "arithmeticCells": 13
  },
  {
   "shape": [
@@ -696,7 +739,8 @@
    "21111"
   ],
   "band": "one case split",
-  "work": 18487,
+  "work": 21082,
+  "workSpread": 1.12,
   "cost": 28,
   "costSpread": 3,
   "peakLevel": 6,
@@ -705,99 +749,105 @@
  },
  {
   "shape": [
-   "00444",
-   "01443",
-   "11133",
-   "11133",
-   "22133"
+   "33112",
+   "11112",
+   "14122",
+   "04444",
+   "00444"
   ],
   "band": "one case split",
-  "work": 21385,
-  "cost": 37,
-  "costSpread": 1,
+  "work": 24408,
+  "workSpread": 1.07,
+  "cost": 34,
+  "costSpread": 4,
   "peakLevel": 6,
   "cases": 1,
   "arithmeticCells": 14
  },
  {
   "shape": [
-   "00433",
-   "00443",
-   "04433",
-   "11133",
-   "11112"
+   "33222",
+   "32210",
+   "31110",
+   "33144",
+   "34444"
   ],
-  "band": "several case splits",
-  "work": 24765,
-  "cost": 32,
-  "costSpread": 1,
-  "peakLevel": 6,
-  "cases": 2,
-  "arithmeticCells": 12
- },
- {
-  "shape": [
-   "03442",
-   "03344",
-   "03444",
-   "03414",
-   "01111"
-  ],
-  "band": "several case splits",
-  "work": 28607,
+  "band": "one case split",
+  "work": 28200,
+  "workSpread": 1.09,
   "cost": 23,
-  "costSpread": 1,
+  "costSpread": 0,
   "peakLevel": 6,
-  "cases": 3,
-  "arithmeticCells": 12
+  "cases": 1,
+  "arithmeticCells": 7
  },
  {
   "shape": [
-   "00122",
-   "00112",
-   "03412",
-   "03442",
-   "44422"
+   "22200",
+   "24410",
+   "24410",
+   "44440",
+   "43340"
   ],
   "band": "several case splits",
-  "work": 32683,
-  "cost": 31,
-  "costSpread": 3,
+  "work": 32647,
+  "workSpread": 1.32,
+  "cost": 39,
+  "costSpread": 1,
   "peakLevel": 6,
   "cases": 2,
+  "arithmeticCells": 11
+ },
+ {
+  "shape": [
+   "00333",
+   "04113",
+   "44111",
+   "42211",
+   "42221"
+  ],
+  "band": "one case split",
+  "work": 37964,
+  "workSpread": 1.06,
+  "cost": 29,
+  "costSpread": 2,
+  "peakLevel": 6,
+  "cases": 1,
   "arithmeticCells": 10
  },
  {
   "shape": [
-   "44444",
-   "00034",
-   "10334",
-   "11344",
-   "11322"
+   "22223",
+   "00233",
+   "00211",
+   "11111",
+   "11144"
   ],
-  "band": "several case splits",
-  "work": 37787,
-  "cost": 24,
-  "costSpread": 1,
+  "band": "one case split",
+  "work": 44031,
+  "workSpread": 1.9,
+  "cost": 30,
+  "costSpread": 9,
   "peakLevel": 6,
-  "cases": 2,
-  "arithmeticCells": 9
+  "cases": 1,
+  "arithmeticCells": 8
  },
  {
   "shape": [
-   "30000",
-   "31100",
-   "31120",
-   "33424",
-   "33444"
+   "00444",
+   "01442",
+   "01442",
+   "31122",
+   "33322"
   ],
   "band": "several case splits",
-  "work": 43757,
-  "cost": 40,
-  "costSpread": 3,
+  "work": 50766,
+  "workSpread": 1.06,
+  "cost": 39,
+  "costSpread": 0,
   "peakLevel": 6,
-  "cases": 3,
-  "arithmeticCells": 10
+  "cases": 2,
+  "arithmeticCells": 8
  },
  {
   "shape": [
@@ -808,7 +858,8 @@
    "11133"
   ],
   "band": "several case splits",
-  "work": 50248,
+  "work": 59742,
+  "workSpread": 1.04,
   "cost": 42,
   "costSpread": 8,
   "peakLevel": 6,
@@ -817,32 +868,51 @@
  },
  {
   "shape": [
-   "22000",
-   "40030",
-   "44330",
-   "44331",
-   "11111"
+   "31112",
+   "33112",
+   "44122",
+   "40100",
+   "40000"
   ],
   "band": "several case splits",
-  "work": 58131,
-  "cost": 38,
-  "costSpread": 3,
+  "work": 67911,
+  "workSpread": 1.07,
+  "cost": 48,
+  "costSpread": 5,
   "peakLevel": 6,
-  "cases": 2,
-  "arithmeticCells": 8
+  "cases": 3,
+  "arithmeticCells": 7
  },
  {
   "shape": [
-   "44422",
-   "44222",
-   "11122",
-   "10323",
-   "00333"
+   "32222",
+   "30421",
+   "30441",
+   "30011",
+   "33000"
   ],
   "band": "several case splits",
-  "work": 66566,
-  "cost": 30,
-  "costSpread": 2,
+  "work": 79977,
+  "workSpread": 1.03,
+  "cost": 41,
+  "costSpread": 10,
+  "peakLevel": 6,
+  "cases": 3,
+  "arithmeticCells": 3
+ },
+ {
+  "shape": [
+   "44111",
+   "11110",
+   "11330",
+   "33330",
+   "32220"
+  ],
+  "band": "several case splits",
+  "work": 90918,
+  "workSpread": 1.3,
+  "cost": 39,
+  "costSpread": 3,
   "peakLevel": 6,
   "cases": 3,
   "arithmeticCells": 7
@@ -850,98 +920,87 @@
  {
   "shape": [
    "22111",
-   "32241",
-   "33441",
+   "20001",
+   "00033",
    "03333",
-   "00033"
+   "04443"
   ],
   "band": "several case splits",
-  "work": 77302,
-  "cost": 43,
-  "costSpread": 2,
-  "peakLevel": 6,
-  "cases": 4,
-  "arithmeticCells": 4
- },
- {
-  "shape": [
-   "10222",
-   "10242",
-   "10442",
-   "00343",
-   "33333"
-  ],
-  "band": "several case splits",
-  "work": 89629,
-  "cost": 32,
-  "costSpread": 1,
+  "work": 104370,
+  "workSpread": 1.19,
+  "cost": 35,
+  "costSpread": 12,
   "peakLevel": 6,
   "cases": 4,
   "arithmeticCells": 5
  },
  {
   "shape": [
-   "00111",
-   "00004",
-   "03344",
-   "03224",
-   "22244"
+   "00033",
+   "44003",
+   "14403",
+   "11222",
+   "11112"
   ],
   "band": "several case splits",
-  "work": 104136,
-  "cost": 44,
-  "costSpread": 5,
+  "work": 121499,
+  "workSpread": 1.04,
+  "cost": 39,
+  "costSpread": 4,
   "peakLevel": 6,
-  "cases": 5,
-  "arithmeticCells": 3
+  "cases": 3,
+  "arithmeticCells": 1
  },
  {
   "shape": [
-   "44400",
-   "43200",
-   "33201",
-   "32201",
-   "32001"
+   "20003",
+   "22033",
+   "00031",
+   "44011",
+   "44011"
   ],
   "band": "several case splits",
-  "work": 123038,
-  "cost": 41,
-  "costSpread": 2,
-  "peakLevel": 6,
-  "cases": 5,
-  "arithmeticCells": 3
- },
- {
-  "shape": [
-   "13444",
-   "13004",
-   "13044",
-   "23002",
-   "22222"
-  ],
-  "band": "several case splits",
-  "work": 137964,
-  "cost": 43,
-  "costSpread": 1,
+  "work": 137955,
+  "workSpread": 1.12,
+  "cost": 36,
+  "costSpread": 7,
   "peakLevel": 6,
   "cases": 6,
   "arithmeticCells": 4
  },
  {
   "shape": [
-   "24444",
-   "24304",
-   "22300",
-   "12330",
-   "11133"
+   "44422",
+   "44220",
+   "44410",
+   "31110",
+   "33310"
   ],
   "band": "several case splits",
-  "work": 157214,
-  "cost": 44,
+  "work": 160599,
+  "workSpread": 1.02,
+  "cost": 45,
   "costSpread": 4,
   "peakLevel": 6,
+  "cases": 5,
+  "arithmeticCells": 2
+ },
+ {
+  "shape": [
+   "11143",
+   "14443",
+   "11103",
+   "21003",
+   "22223"
+  ],
+  "band": "several case splits",
+  "work": 190990,
+  "workSpread": 1.06,
+  "cost": 51,
+  "costSpread": 16,
+  "peakLevel": 6,
   "cases": 6,
-  "arithmeticCells": 0
+  "arithmeticCells": 1
  },
  {
   "shape": [
@@ -952,9 +1011,10 @@
    "22444"
   ],
   "band": "several case splits",
-  "work": 183191,
-  "cost": 44,
-  "costSpread": 4,
+  "work": 218874,
+  "workSpread": 1.16,
+  "cost": 45,
+  "costSpread": 8,
   "peakLevel": 6,
   "cases": 6,
   "arithmeticCells": 1

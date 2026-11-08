@@ -30,6 +30,26 @@ import type { Block, BoolExpr, Fact, PState, Puzzle } from './types';
 export interface SaturateOptions extends SearchOptions {
   /** The dearest statement worth considering before giving up on arithmetic. */
   maxCeiling?: number;
+  /**
+   * Partials the signed eliminator carries forward. Declared here so it reaches the tool
+   * through the sweep. Measured over 6 to 96 on the 5x5 corpus it changes the work figure by
+   * 1-2% and the ranking not at all, because the statement-cost ceiling caps the combinations
+   * before the width binds; at 14x14, with far more lines and cliques in play, it may.
+   */
+  beamWidth?: number;
+  /**
+   * Buy one statement per sweep — the single best — instead of every statement that gains
+   * ground at the cheapest price. See `bestMove` for what "best" means.
+   *
+   * Off, because it is strictly worse. It does look better unpruned: median cost 19 against
+   * saturation's 26, cheaper on 57 of 60 boards and dearer on none. But that gap is entirely
+   * saturation's verbosity — it buys statements a later one in the same sweep makes pointless
+   * — and `prune` removes 27% of its cost for nothing, against 5% of greedy's. Pruned, the
+   * two are level at a median ratio of 1.00, and greedy has done 15% more sifting to get
+   * there. Comparing raw proof lengths measures how redundant a prover is, not how well it
+   * chooses.
+   */
+  greedy?: boolean;
   /** States to explore inside a case split before abandoning it. */
   caseCeiling?: number;
   /** Give up on case analysis entirely. */
@@ -158,9 +178,14 @@ export function saturate(
     if (Date.now() > deadline) break;
     let advanced = false;
     const available = levelMoves(puzzle, state, level, options).sort((a, b) => a.cost - b.cost);
-    const sweep = options.shuffleSeed === undefined
+    const ordered = options.shuffleSeed === undefined
       ? available
       : shuffled(available, options.shuffleSeed + blocks.length + level);
+    // Greedy buys the single best statement and re-sweeps; saturation buys them all. The
+    // difference is redundancy against repetition: saturation can buy a statement that a
+    // later one in the same sweep makes pointless, while greedy re-sifts the whole board
+    // after every purchase.
+    const sweep = options.greedy ? bestMove(puzzle, state, ordered) : ordered;
     for (const move of sweep) {
       // Re-check: an earlier move in this sweep may have consumed what this one names.
       const step = applyStep(puzzle, state, move.block);
@@ -225,6 +250,29 @@ export function saturate(
     }
   }
   return { blocks, state, peakLevel, cases: (cases?.argued ?? 0) - argued0 };
+}
+
+/**
+ * The single best statement in a sweep, as a one-element list — or none, if none advances.
+ *
+ * Best is cheapest per cell settled, falling back to cheapest outright for a statement that
+ * settles nothing but teaches something (a split, a tightened bound). Measured on equal cost
+ * alone the choice would be arbitrary, since most of a sweep ties.
+ */
+function bestMove(puzzle: Puzzle, state: PState, moves: Move[]): Move[] {
+  let best: Move | null = null;
+  let bestKey = [Infinity, Infinity];
+  for (const move of moves) {
+    const step = applyStep(puzzle, state, move.block);
+    if (step.status !== 'ok' || !gainsGround(state, step.state)) continue;
+    const gain = settled(step.state) - settled(state);
+    const key = gain > 0 ? [move.cost / gain, move.cost] : [Infinity, move.cost];
+    if (key[0] < bestKey[0] || (key[0] === bestKey[0] && key[1] < bestKey[1])) {
+      best = move;
+      bestKey = key;
+    }
+  }
+  return best ? [best] : [];
 }
 
 /** What a move charges per cell it settles — the only basis on which two tools compare. */
