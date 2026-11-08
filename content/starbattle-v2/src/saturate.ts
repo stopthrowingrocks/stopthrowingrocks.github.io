@@ -33,6 +33,18 @@ export interface SaturateOptions extends SearchOptions {
   caseCeiling?: number;
   /** Give up on case analysis entirely. */
   noCases?: boolean;
+  /**
+   * Let an argument outbid arithmetic when it is the better buy per cell settled, rather
+   * than waiting for arithmetic to exhaust its ceiling.
+   *
+   * Off by default, because measurement says it rarely wins. An argument is available at
+   * body ceiling 1 on every board that stalls, and costs 3 against arithmetic's 4 to 6 — so
+   * by statement cost it looks like the bargain. Per cell settled it is not: an argument
+   * settles exactly one cell, while a dear arithmetic statement can settle several, which
+   * comes to 3.00 per cell against 2.00. Arithmetic is the better buy at 31 of 36 stalls
+   * where both can move, so exhausting it first is right about 86% of the time by accident.
+   */
+  bidCases?: boolean;
   timeLimitMs?: number;
   onProgress?: (note: string) => void;
   /**
@@ -97,7 +109,30 @@ export interface SaturateResult {
   stuckAt?: number;
   /** The dearest price that ever bought progress — which tool the board forced us to reach for. */
   peakLevel: number;
+  /** How many times a case had to be argued rather than derived. */
+  cases: number;
 }
+
+/**
+ * Case analysis carried across the sweep, so arguing can share the ladder with arithmetic.
+ *
+ * Arguing a cell is just another tool with a price: a claim costs one for itself, one for
+ * the contradiction, and the body it needs. The cheapest possible one comes to about four,
+ * which undercuts arithmetic at levels five and six — so running arithmetic to its ceiling
+ * before arguing anything gets the order wrong, and measurably so.
+ *
+ * What is carried: which cells have been asked at which price, and the cheapest argument
+ * found but not yet affordable. Both are useless without the other — the first stops dead
+ * cells being re-asked, the second stops a found argument being thrown away and re-derived
+ * at every level until it comes into budget.
+ */
+export interface CaseContext {
+  attempted: Map<string, number>;
+  pending: Move | null;
+  argued: number;
+}
+
+export const newCaseContext = (): CaseContext => ({ attempted: new Map(), pending: null, argued: 0 });
 
 /**
  * Sweep the board at rising prices until the goal is reached or nothing is left to try.
@@ -107,6 +142,8 @@ export function saturate(
   start: PState,
   goal: (state: PState) => boolean,
   options: SaturateOptions = {},
+  /** Supply this to let arguing compete with arithmetic at each price. */
+  cases: CaseContext | null = null,
 ): SaturateResult {
   const maxCeiling = options.maxCeiling ?? 6;
   const deadline = Date.now() + (options.timeLimitMs ?? 300000);
@@ -114,6 +151,7 @@ export function saturate(
   let state = start;
   let level = 1;
   let peakLevel = 0;
+  const argued0 = cases?.argued ?? 0;
 
   while (!goal(state)) {
     if (Date.now() > deadline) break;
@@ -135,11 +173,121 @@ export function saturate(
     }
     if (advanced) {
       level = 1;              // cheap tools are worth another look now
-    } else if (++level > maxCeiling) {
-      return { blocks, state, stuckAt: maxCeiling, peakLevel };
+      continue;
+    }
+
+    // Arithmetic at this price is spent. An argument at this price may not be, and at the
+    // dearer levels it is usually the better buy — so it is offered the same budget before
+    // the price goes up, rather than waiting for arithmetic to exhaust its whole ceiling.
+    const argument = cases && !options.noCases && options.bidCases
+      ? winningCase(puzzle, state, level, maxCeiling, options, cases)
+      : null;
+    if (argument) {
+      const step = applyStep(puzzle, state, argument.block);
+      if (step.status === 'ok' && gainsGround(state, step.state)) {
+        blocks.push(argument.block);
+        forgetAround(state, step.state, cases!.attempted);
+        state = step.state;
+        cases!.pending = null;
+        cases!.argued += 1;
+        peakLevel = Math.max(peakLevel, level);
+        options.onProgress?.(`${level}: argued a case for ${argument.cost} (${settled(state)} settled)`);
+        level = 1;
+        continue;
+      }
+      cases!.pending = null;
+    }
+
+    if (++level > maxCeiling) {
+      // The ceiling is a budget for arithmetic, not a refusal to finish. An argument dearer
+      // than any level is still worth having once nothing cheaper exists anywhere, so it is
+      // taken at whatever it costs rather than abandoning a board we can actually prove.
+      const last = cases && !options.noCases
+        ? cases.pending ?? findCase(puzzle, state, { ...options, caseCeiling: options.caseCeiling ?? 4 }, cases.attempted)
+        : null;
+      if (!last) {
+        return { blocks, state, stuckAt: maxCeiling, peakLevel, cases: (cases?.argued ?? 0) - argued0 };
+      }
+      const step = applyStep(puzzle, state, last.block);
+      if (step.status !== 'ok' || !gainsGround(state, step.state)) {
+        cases!.pending = null;
+        return { blocks, state, stuckAt: maxCeiling, peakLevel, cases: (cases?.argued ?? 0) - argued0 };
+      }
+      blocks.push(last.block);
+      forgetAround(state, step.state, cases!.attempted);
+      state = step.state;
+      cases!.pending = null;
+      cases!.argued += 1;
+      peakLevel = Math.max(peakLevel, level - 1);
+      options.onProgress?.(`over ceiling: argued a case for ${last.cost} (${settled(state)} settled)`);
+      level = 1;
     }
   }
-  return { blocks, state, peakLevel };
+  return { blocks, state, peakLevel, cases: (cases?.argued ?? 0) - argued0 };
+}
+
+/** What a move charges per cell it settles — the only basis on which two tools compare. */
+function perCell(cost: number, before: PState, after: PState): number {
+  const gain = settled(after) - settled(before);
+  return gain > 0 ? cost / gain : Infinity;
+}
+
+/**
+ * An argument, but only if it beats every arithmetic statement still unbought.
+ *
+ * Arithmetic that costs more per statement can still cost less per cell, so the two tools
+ * are compared on cells settled. The arithmetic side is a genuine lookahead: it enumerates
+ * the dearer levels that have not been swept yet. That is work the rising level would do
+ * anyway, so it is not extra in the common case — but it is why this is off by default.
+ *
+ * An argument found but outbid is kept rather than discarded, so the same search is not
+ * paid for once per level.
+ */
+function winningCase(
+  puzzle: Puzzle,
+  state: PState,
+  level: number,
+  maxCeiling: number,
+  options: SaturateOptions,
+  cases: CaseContext,
+): Move | null {
+  if (!cases.pending) {
+    cases.pending = findCase(puzzle, state, { ...options, caseCeiling: level }, cases.attempted);
+  }
+  const argument = cases.pending;
+  if (!argument) return null;
+  const bid = perCell(argument.cost, state, argument.state);
+  if (!Number.isFinite(bid)) return null;
+
+  for (let dearer = level; dearer <= maxCeiling; dearer += 1) {
+    for (const move of levelMoves(puzzle, state, dearer, options)) {
+      const step = applyStep(puzzle, state, move.block);
+      if (step.status !== 'ok') continue;
+      if (perCell(move.cost, state, step.state) <= bid) return null;
+    }
+  }
+  return argument;
+}
+
+/**
+ * An argument that settles cells changes what is provable around them, so cells that gave
+ * nothing before are worth asking about again — but only those the new information touched.
+ * Clearing the whole map instead throws away the saving it exists for: on a 14x14 that was
+ * 18s of arithmetic against 886s of re-asking cells that were still dead.
+ */
+function forgetAround(before: PState, after: PState, attempted: Map<string, number>): void {
+  const settledNow = after.cells
+    .map((cell, index) => (cell !== null && before.cells[index] === null ? index : -1))
+    .filter(index => index >= 0);
+  const had = new Set(before.facts.map(factSignature));
+  const touched = new Set<number>(settledNow);
+  for (const fact of after.facts) {
+    if (had.has(factSignature(fact))) continue;
+    for (const cell of fact.cells) touched.add(cell);
+  }
+  for (const key of [...attempted.keys()]) {
+    if (touched.has(Number(key.split('|')[0]))) attempted.delete(key);
+  }
 }
 
 // ── Pruning ─────────────────────────────────────────────────────────────────────
@@ -292,53 +440,25 @@ export interface ProveResult {
   cases: number;
 }
 
-/** Saturate, and when that stalls, argue about a cell — then saturate again. */
+/**
+ * Prove the board, arguing cases where that is cheaper than deriving.
+ *
+ * There is no phase structure left: arithmetic and argument are two tools on one price
+ * ladder, and the sweep buys whichever is cheaper at each stall. A board that yields to a
+ * cost-4 argument no longer has to sit through the whole cost-6 arithmetic enumeration first.
+ */
 export function prove(puzzle: Puzzle, start: PState, options: SaturateOptions = {}): ProveResult {
   const started = Date.now();
-  const deadline = started + (options.timeLimitMs ?? 600000);
-  const blocks: Block[] = [];
-  let state = start;
-  // Shared across rounds: a cell that gave nothing is not asked again at the same price.
-  const attempted = new Map<string, number>();
-  let peakLevel = 0;
-  let cases = 0;
-
-  for (;;) {
-    const round = saturate(puzzle, state, isSolved, { ...options, timeLimitMs: deadline - Date.now() });
-    blocks.push(...round.blocks);
-    state = round.state;
-    peakLevel = Math.max(peakLevel, round.peakLevel);
-    if (isSolved(state) || options.noCases || Date.now() > deadline) break;
-
-    options.onProgress?.(`stuck at ${settled(state)} cells — looking for a case to argue`);
-    const argued = findCase(puzzle, state,
-      { ...options, timeLimitMs: Math.min(120000, deadline - Date.now()) }, attempted);
-    if (!argued) break;
-    const before = state;
-    blocks.push(argued.block);
-    state = argued.state;
-    cases += 1;
-    // An argument that settles cells changes what is provable around them, so dead cells
-    // sharing a line or region with the new information are worth asking about again.
-    const fresh = state.cells
-      .map((cell, index) => (cell !== null && before.cells[index] === null ? index : -1))
-      .filter(index => index >= 0);
-    // Precisely where the information landed: the cells of hypotheses that changed, plus
-    // the cells just settled. Invalidating a whole row and region instead clears nearly the
-    // board, which throws the saving away.
-    const had = new Set(before.facts.map(factSignature));
-    const touched = new Set<number>(fresh);
-    for (const fact of state.facts) {
-      if (had.has(factSignature(fact))) continue;
-      for (const cell of fact.cells) touched.add(cell);
-    }
-    for (const key of [...attempted.keys()]) {
-      if (touched.has(Number(key.split('|')[0]))) attempted.delete(key);
-    }
-    options.onProgress?.(`argued a case for ${argued.cost}`);
-  }
+  const cases = options.noCases ? null : newCaseContext();
+  const run = saturate(puzzle, start, isSolved,
+    { ...options, timeLimitMs: options.timeLimitMs ?? 600000 }, cases);
   return {
-    blocks, state, solved: isSolved(state), cost: proofCost(blocks),
-    ms: Date.now() - started, peakLevel, cases,
+    blocks: run.blocks,
+    state: run.state,
+    solved: isSolved(run.state),
+    cost: proofCost(run.blocks),
+    ms: Date.now() - started,
+    peakLevel: run.peakLevel,
+    cases: run.cases,
   };
 }
