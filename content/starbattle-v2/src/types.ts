@@ -64,11 +64,32 @@ export interface Fact {
   impossible: boolean;
 }
 
+/**
+ * A stored conditional derivation: "if `pred` held, this is what would follow."
+ *
+ * Nothing in it is asserted. It is a snapshot of the body's end state, which `use` splices
+ * into the current state as a difference once `pred` is established — modus ponens, deferred
+ * until you find out which way the supposition goes.
+ */
+export interface Supposition {
+  /** Its name, which is how `use` refers to it. */
+  name: string;
+  pred: BoolExpr;
+  /** The body's final board. */
+  cells: CellK[];
+  /** The body's final hypothesis pool. */
+  facts: Fact[];
+  /** The body derived a contradiction, so `pred` is in fact false. */
+  contradiction: boolean;
+}
+
 export interface PState {
   cells: CellK[];
   facts: Fact[];
   /** Proven Boolean propositions that do not normalize to linear count facts. */
   propositions: BoolExpr[];
+  /** Conditional derivations in scope here, by the order they were made. */
+  suppositions: Supposition[];
   contradiction: boolean;
   /**
    * A `sorry` was used here: whatever this body was meant to establish is taken as given
@@ -111,6 +132,8 @@ export type Block =
   | { id: string; type: 'split'; name: string; expr: HypExpr | null; parts: HypExpr[] }
   | { id: string; type: 'argument'; body: Block[] }
   | { id: string; type: 'sorry' }
+  | { id: string; type: 'suppose'; name: string; pred: BoolExpr | null; body: Block[] }
+  | { id: string; type: 'use'; name: string }
   | { id: string; type: 'claim'; pred: BoolExpr | null; body: Block[] }
   | { id: string; type: 'by_contradiction'; body: Block[]; contradiction: HypExpr | null }
   | { id: string; type: 'constructor'; left: Block[]; right: Block[] }

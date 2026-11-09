@@ -9,13 +9,24 @@ would be resolved and these hypotheses would follow."
 `use S` discharges that record in the forward direction — modus ponens. It requires `P` to be
 established at that point in the proof, and then brings in what `S` derived.
 
-The contrapositive direction (modus tollens: something `S` derived is false, therefore `¬P`)
-is deliberately **out of scope for now**. The record stores everything needed to add it later.
+The contrapositive direction needs **no machinery of its own** — it composes out of the
+forward one. To get `¬p` from `¬q`: suppose `p` and derive `q`, then claim `¬p` by
+contradiction. Inside that body `p` is the assumption, so `p` is established and `use`
+discharges forward, bringing in `q` to meet the `¬q` already known:
 
-This is a generalization of the Lean `scontra` tactic that the TODO lists as "suppose": that
-is the special case where the body goes contradictory and you discharge backwards. Since
-only the forward direction is being built, `scontra` is **not** yet subsumed — the existing
-`claim` + `by-contradiction` pairing stays the way to do it.
+```
+(suppose S (is-star A1) <body deriving q>)
+(claim (is-elim A1)
+  (by-contradiction (body (use S)) (via <the hypothesis q breaks>)))
+```
+
+This is why `use` takes a name and not an expression: there is no modus tollens wrapper to
+justify a slot. The record still stores everything a direct backwards discharge would need,
+should naming the one false derived fact ever read better than injecting the collection and
+letting the contradiction fall out.
+
+So `scontra` is subsumed by composition rather than by a separate tactic, and the existing
+`claim` + `by-contradiction` pairing remains how the contradiction itself is written.
 
 ## Blocks
 

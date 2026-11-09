@@ -79,6 +79,12 @@ export function statementCost(block: Block): number {
       return 1 + exprCost(block.contradiction) + proofCost(block.body);
     case 'argument':
       return 1 + proofCost(block.body);
+    // A supposition is priced like the conditional proof it is: itself, its predicate, and
+    // the body it needed. Discharging it is one statement, naming nothing but the record.
+    case 'suppose':
+      return 1 + boolCost(block.pred) + proofCost(block.body);
+    case 'use':
+      return 1;
     case 'constructor':
       return 1 + proofCost(block.left) + proofCost(block.right);
     case 'by_cases':

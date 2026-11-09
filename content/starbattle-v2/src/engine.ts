@@ -21,6 +21,7 @@ export function initState(puzzle: Puzzle): PState {
     cells: new Array<null>(puzzle.size * puzzle.size).fill(null),
     facts,
     propositions: [],
+    suppositions: [],
     contradiction: false,
     admitted: false,
   };
@@ -31,6 +32,9 @@ function cloneState(s: PState): PState {
     cells: [...s.cells],
     facts: s.facts.map(f => ({ ...f, cells: [...f.cells] })),
     propositions: [...s.propositions],
+    suppositions: s.suppositions.map(sup => ({
+      ...sup, cells: [...sup.cells], facts: sup.facts.map(f => ({ ...f, cells: [...f.cells] })),
+    })),
     contradiction: s.contradiction,
     admitted: s.admitted,
   };
@@ -630,7 +634,7 @@ export function hypothesisForm(
  */
 export function childContainers(b: Block): [string, Block[]][] {
   if (b.type === 'argument') return [[b.id, b.body]];
-  if (b.type === 'claim' || b.type === 'by_contradiction') return [[b.id, b.body]];
+  if (b.type === 'claim' || b.type === 'by_contradiction' || b.type === 'suppose') return [[b.id, b.body]];
   if (b.type === 'constructor') return [[`${b.id}:left`, b.left], [`${b.id}:right`, b.right]];
   if (b.type === 'by_cases') return [[`${b.id}:positive`, b.positive], [`${b.id}:negative`, b.negative]];
   return [];
@@ -959,12 +963,133 @@ function evalSeq(
           next.cells = end.cells;
           next.facts = end.facts;
           next.propositions = end.propositions;
+          // An argument is transparent grouping, so a supposition made inside it is in scope
+          // after it — unlike one made in a claim or a case arm, which runs on a clone.
+          next.suppositions = end.suppositions;
           next.contradiction = end.contradiction;
           next.admitted = end.admitted;
           note = 'argument complete';
         }
         break;
       }
+      /*
+       * Suppose: run the body with `pred` assumed and keep the result as a record.
+       *
+       * Nothing escapes. The outer state gains only the record itself, which is why this
+       * proves nothing on its own and why a contradictory body is stored rather than
+       * refused — it simply means `use` will never find its supposition established.
+       */
+      case 'suppose': {
+        const name = b.name.trim();
+        if (!b.pred) {
+          error = 'choose something to suppose';
+          skipChildren(b, results, entries, prev);
+          break;
+        }
+        if (!name) {
+          error = 'enter a name for this supposition';
+          skipChildren(b, results, entries, prev);
+          break;
+        }
+        if (prev.suppositions.some(sup => sup.name === name)) {
+          error = `${name} is already supposed`;
+          skipChildren(b, results, entries, prev);
+          break;
+        }
+        const opened = cloneState(prev);
+        const bad = addGoalFacts(opened, puzzle, b.pred, 'asm');
+        if (bad !== null) {
+          error = bad;
+          skipChildren(b, results, entries, prev);
+          break;
+        }
+        const end = evalSeq(puzzle, b.body, opened, results, entries, b.id, null);
+        if (sequenceErrored(b.body, results)) {
+          error = 'the supposition contains an invalid step';
+        } else {
+          next.suppositions = [...prev.suppositions, {
+            name,
+            pred: b.pred,
+            cells: [...end.cells],
+            facts: end.facts.map(f => ({ ...f, cells: [...f.cells] })),
+            contradiction: end.contradiction,
+          }];
+          const settled = end.cells.filter((c, i) => c !== null && prev.cells[i] === null).length;
+          note = end.contradiction
+            ? `recorded: ${name} is impossible`
+            : `recorded: ${name} would settle ${settled} cell${settled === 1 ? '' : 's'}`;
+        }
+        break;
+      }
+
+      /*
+       * Use: discharge a record forward, as the difference against what is known now.
+       *
+       * Sound because knowledge only grows within a scope — a cell once resolved stays
+       * resolved, and a fact that has since been consumed was true when the body used it.
+       * So the state here entails the state the body ran from, and `pred` plus that state
+       * entails everything the body derived.
+       */
+      case 'use': {
+        const name = b.name.trim();
+        if (!name) { error = 'choose a supposition'; break; }
+        const sup = prev.suppositions.find(s => s.name === name);
+        if (!sup) { error = 'that supposition is not available here'; break; }
+        if (!goalSatisfied(prev, sup.pred)) {
+          error = `${name} is not established — prove its supposition first`;
+          break;
+        }
+        const notes: string[] = [];
+        // Cells first: a star imported here must still eliminate its neighbours, so this
+        // goes through the normal marking path rather than assigning the array.
+        for (let cell = 0; cell < sup.cells.length; cell++) {
+          const want = sup.cells[cell];
+          if (want === null) continue;
+          const have = next.cells[cell];
+          if (have === want) continue;
+          if (have !== null) {
+            // `pred` holds and `pred` implies this cell, so this branch cannot stand.
+            next.contradiction = true;
+            notes.push(`${posLabel(cell, puzzle.size)} contradicts ${name}`);
+            continue;
+          }
+          if (want === 'star') setStar(next, cell, puzzle.size);
+          else setElim(next, cell);
+        }
+        // Narrows the outer facts by whatever was just imported, which is why narrowed
+        // copies of outer facts need no importing — this reproduces them.
+        normalize(next);
+        const known = new Set(next.facts.map(f => `${f.op}${f.target}:${f.cells.join(',')}`));
+        let added = 0;
+        for (const fact of sup.facts) {
+          if (fact.cells.length === 0) continue;
+          const key = `${fact.op}${fact.target}:${fact.cells.join(',')}`;
+          if (known.has(key)) continue;
+          const id = `${name}-${fact.id}`;
+          if (next.facts.some(f => f.id === id)) continue;
+          known.add(key);
+          added += 1;
+          next.facts.push({
+            ...fact,
+            id,
+            kind: 'derived',
+            index: 0,
+            label: `${name}: ${fact.label ?? fact.id}`,
+            cells: [...fact.cells],
+          });
+        }
+        if (added) normalize(next);
+        const moved = next.cells.filter((c, i) => c !== null && prev.cells[i] === null).length;
+        if (!added && !moved && !notes.length) {
+          error = `you already know everything ${name} derived`;
+          break;
+        }
+        notes.push(`${name} gives ${moved} cell${moved === 1 ? '' : 's'}` +
+          (added ? ` and ${added} hypothes${added === 1 ? 'is' : 'es'}` : ''));
+        note = notes.join('; ');
+        break;
+      }
+
       case 'claim': {
         const litText = (l: LoweredCmp): string =>
           `★{${l.cells.map(c => posLabel(c, puzzle.size)).join(' ')}} ${opSymbol(l.op)} ${l.k}`;

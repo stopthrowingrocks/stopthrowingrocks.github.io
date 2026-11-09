@@ -247,6 +247,16 @@ function printBlockCore(b: Block, puzzle: Puzzle, results?: Results): Sx {
       const body = b.body.map(child => printBlock(child, puzzle, results));
       return tagged('argument', body);
     }
+    case 'suppose': {
+      const body = b.body.map(child => printBlock(child, puzzle, results));
+      return {
+        t: 'list',
+        v: [atom('suppose'), atom(printAtomOrString(b.name)), printBool(b.pred, puzzle), ...body],
+        line: 0,
+      };
+    }
+    // A name, not an expression: there is no contrapositive wrapper to justify a slot.
+    case 'use': return tagged('use', [atom(printAtomOrString(b.name))]);
     case 'claim': {
       const body = b.body.map(child => printBlock(child, puzzle, results));
       return { t: 'list', v: [atom('claim'), printBool(b.pred, puzzle), ...body], line: 0 };
@@ -476,6 +486,13 @@ function parseStmt(sx: Sx, puzzle: Puzzle): Block {
       const body = items.slice(1).map(s => parseStmt(s, puzzle));
       return { id, type: 'argument', body };
     }
+    case 'suppose': {
+      const name = expectAtom(items[1], 'a name for the supposition');
+      const pred = parseBool(items[2], puzzle);
+      const body = items.slice(3).map(s => parseStmt(s, puzzle));
+      return { id, type: 'suppose', name, pred, body };
+    }
+    case 'use': return { id, type: 'use', name: expectAtom(items[1], 'the name of a supposition') };
     case 'claim': {
       const pred = parseBool(items[1], puzzle);
       const body = items.slice(2).map(s => parseStmt(s, puzzle));

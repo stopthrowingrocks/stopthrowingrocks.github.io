@@ -133,6 +133,27 @@ function factOptions(this: Blockly.FieldDropdown): Blockly.MenuOption[] {
   return options;
 }
 
+/**
+ * The suppositions in scope where this `use` sits — the same ancestor walk the fact dropdown
+ * does, since a supposition lives on `PState` exactly as facts do and scopes the same way.
+ */
+function suppositionOptions(this: Blockly.FieldDropdown): Blockly.MenuOption[] {
+  const source = this.getSourceBlock();
+  let scope = source?.getParent() ?? null;
+  while (scope && !context?.results.has(scope.id)) scope = scope.getParent();
+  const result = scope ? context?.results.get(scope.id) : undefined;
+  const made = result?.scope?.suppositions ?? result?.prev.suppositions ?? [];
+  const options: Blockly.MenuOption[] = [['— supposition —', '']];
+  for (const sup of made) {
+    options.push([sup.contradiction ? `${sup.name} (impossible)` : sup.name, sup.name]);
+  }
+  const current = this.getValue();
+  if (current && !made.some(sup => sup.name === current)) {
+    options.push([`${current} (unavailable)`, current]);
+  }
+  return options;
+}
+
 function cellOptions(this: Blockly.FieldDropdown): Blockly.MenuOption[] {
   const size = context?.puzzle.size ?? 1;
   return Array.from({ length: size * size }, (_, index) => [posLabel(index, size), String(index)]);
@@ -526,6 +547,33 @@ function registerBlocks() {
       this.setTooltip('Group proof blocks without changing their meaning');
     },
   };
+  Blockly.Blocks.sb_suppose = {
+    init() {
+      this.appendValueInput('PRED').setCheck('Boolean')
+        .appendField('suppose')
+        .appendField(new Blockly.FieldTextInput('S'), 'NAME')
+        .appendField(':');
+      this.appendDummyInput().appendField('then');
+      this.appendStatementInput('BODY').setCheck('Proof');
+      this.setInputsInline(true);
+      this.setPreviousStatement(true, 'Proof');
+      this.setNextStatement(true, 'Proof');
+      this.setColour(160);
+      this.setTooltip('Work out what would follow if this were true. Proves nothing on its ' +
+        'own — it records the consequences, and "use" brings them in once you have proved it.');
+    },
+  };
+  Blockly.Blocks.sb_use = {
+    init() {
+      this.appendDummyInput().appendField('use')
+        .appendField(new Blockly.FieldDropdown(suppositionOptions), 'NAME');
+      this.setPreviousStatement(true, 'Proof');
+      this.setNextStatement(true, 'Proof');
+      this.setColour(160);
+      this.setTooltip('Bring in what a supposition derived. Needs the supposition itself ' +
+        'to be established here first.');
+    },
+  };
   Blockly.Blocks.sb_claim = {
     init() {
       this.appendValueInput('PRED').setCheck('Boolean').appendField('claim');
@@ -653,6 +701,8 @@ function makeToolbox(facts: Fact[]): Blockly.utils.toolbox.ToolboxDefinition {
     { kind: 'block', type: 'sb_bound' },
     { kind: 'block', type: 'sb_argument' },
     { kind: 'block', type: 'sb_claim' },
+    { kind: 'block', type: 'sb_suppose' },
+    { kind: 'block', type: 'sb_use' },
     { kind: 'block', type: 'sb_by_contradiction' },
     { kind: 'block', type: 'sb_constructor' },
     { kind: 'block', type: 'sb_by_cases' },
@@ -793,6 +843,14 @@ function proofBlock(block: Blockly.Block, puzzle: Puzzle): Block | null {
     }
     case 'sb_sorry': return { id: block.id, type: 'sorry' };
     case 'sb_argument': return { id: block.id, type: 'argument', body: proofSequence(block.getInputTargetBlock('BODY'), puzzle) };
+    case 'sb_suppose': return {
+      id: block.id,
+      type: 'suppose',
+      name: block.getFieldValue('NAME') ?? '',
+      pred: boolExpr(block.getInputTargetBlock('PRED'), puzzle),
+      body: proofSequence(block.getInputTargetBlock('BODY'), puzzle),
+    };
+    case 'sb_use': return { id: block.id, type: 'use', name: block.getFieldValue('NAME') ?? '' };
     case 'sb_claim': return {
       id: block.id,
       type: 'claim',
@@ -1063,6 +1121,18 @@ function buildStmt(workspace: Blockly.WorkspaceSvg, b: Block, puzzle: Puzzle): B
     case 'argument': {
       const block = newBuiltBlock(workspace, 'sb_argument');
       connectStatement(block, 'BODY', buildSequence(workspace, b.body, puzzle));
+      return block;
+    }
+    case 'suppose': {
+      const block = newBuiltBlock(workspace, 'sb_suppose');
+      block.setFieldValue(b.name, 'NAME');
+      connectValue(block, 'PRED', buildBool(workspace, b.pred, puzzle));
+      connectStatement(block, 'BODY', buildSequence(workspace, b.body, puzzle));
+      return block;
+    }
+    case 'use': {
+      const block = newBuiltBlock(workspace, 'sb_use');
+      block.setFieldValue(b.name, 'NAME');
       return block;
     }
     case 'claim': {
