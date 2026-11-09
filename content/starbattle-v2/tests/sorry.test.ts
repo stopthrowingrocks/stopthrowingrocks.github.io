@@ -58,7 +58,7 @@ test('an admission carries out of a plain argument', () => {
 });
 
 test('a proof that admits nothing is not reported as admitted', () => {
-  assert.equal(containsSorry(parseProof('(elims (- row0 region1))', PUZZLE)), false);
+  assert.equal(containsSorry(parseProof('(elims (- row1 region2))', PUZZLE)), false);
 });
 
 test('an admission anywhere is found, however deeply nested', () => {

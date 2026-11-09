@@ -922,6 +922,33 @@ function enclosingStep(block: Blockly.Block | null): Blockly.Block | null {
  * Rewrite references saved by older builds, whose fact ids embedded block ids,
  * in the proof and in any floating stacks alike.
  */
+/**
+ * Renumber line references saved before rows, columns and regions were named as the GUI
+ * names them: `row0` was the first row, and columns were numbered rather than lettered.
+ *
+ * This must run exactly once per saved proof. Running it twice would turn `row1` into `row2`
+ * and quietly change which row the proof is about, so saves carry a marker and only those
+ * without one are touched — the shift is not the kind of mistake that announces itself.
+ */
+function migrateLineIds(workspace: Blockly.WorkspaceSvg): void {
+  let upgraded = 0;
+  for (const ref of workspace.getBlocksByType('sb_fact', false)) {
+    const old = ref.getFieldValue('FACT');
+    const parsed = /^(row|col|region)(\d+)$/.exec(old ?? '');
+    if (!parsed) continue;
+    const index = Number(parsed[2]);
+    const current = parsed[1] === 'col'
+      ? `col${String.fromCharCode(65 + index)}`
+      : `${parsed[1]}${index + 1}`;
+    ref.setFieldValue(current, 'FACT');
+    upgraded++;
+  }
+  if (upgraded > 0) {
+    console.info(`Renamed ${upgraded} line reference${upgraded === 1 ? '' : 's'} to match the ` +
+      'board: rows and regions now count from one, and columns are lettered.');
+  }
+}
+
 function migrateLegacyReferences(workspace: Blockly.WorkspaceSvg, puzzle: Puzzle): void {
   const stacks = workspace.getTopBlocks(false).flatMap(top =>
     proofSequence(top.type === 'sb_start' ? top.getNextBlock() : top, puzzle));
@@ -1231,13 +1258,19 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
   const saveWorkspace = useCallback((workspace: Blockly.WorkspaceSvg) => {
     const saved = {
       puzzle: storageKey,
+      // Marks the proof as using board-matching line names, so the one-time renumbering in
+      // `migrateLineIds` never runs over it a second time.
+      lineIds: 'named',
       workspace: Blockly.serialization.workspaces.save(workspace),
     };
     window.localStorage.setItem(storageKey, JSON.stringify(saved));
     return saved;
   }, [storageKey]);
 
-  const loadWorkspace = useCallback((workspace: Blockly.WorkspaceSvg, saved: { puzzle?: string; workspace?: object }) => {
+  const loadWorkspace = useCallback((
+    workspace: Blockly.WorkspaceSvg,
+    saved: { puzzle?: string; lineIds?: string; workspace?: object },
+  ) => {
     if (saved.puzzle && saved.puzzle !== storageKey) throw new Error('That proof belongs to a different puzzle.');
     if (!saved.workspace) throw new Error('The clipboard does not contain a Star Battle proof.');
     Blockly.Events.disable();
@@ -1246,6 +1279,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
       Blockly.serialization.workspaces.load(saved.workspace, workspace);
       if (!workspace.getTopBlocks(false).some(block => block.type === 'sb_start')) addStartBlock(workspace);
       migrateLegacyReferences(workspace, puzzle);
+      if (saved.lineIds !== 'named') migrateLineIds(workspace);
     } finally {
       Blockly.Events.enable();
     }

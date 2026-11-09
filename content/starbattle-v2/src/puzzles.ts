@@ -87,6 +87,19 @@ export function lineIndices(puzzle: Puzzle, kind: LineKind): number[] {
   return Array.from({ length: puzzle.size }, (_, i) => i);
 }
 
+/**
+ * The reference name of a line: `row3`, `colC`, `region2`.
+ *
+ * It matches what the GUI calls the line, so what you read on the board is what you type in
+ * a proof — rows and regions counted from one, columns lettered as the cell labels letter
+ * them, so `A1` is the cell where `colA` meets `row1`. Builds before this counted all three
+ * from zero, which made `row1` the second row.
+ */
+export function lineId(kind: LineKind, index: number): string {
+  if (kind === 'col') return `col${colLetter(index)}`;
+  return `${kind}${index + 1}`;
+}
+
 /** Human name of a line: "row 3", "column C", "region 2". */
 export function lineName(kind: LineKind, index: number): string {
   if (kind === 'row') return `row ${index + 1}`;

@@ -1,5 +1,5 @@
 import type { Block, BlockResult, BlockStatus, BoolExpr, CmpExpr, CmpOp, Fact, FactOp, HypExpr, NumExpr, PState, Puzzle } from './types';
-import { factName, lineIndices, lineMembers, neighbors, posLabel } from './puzzles';
+import { factName, lineId, lineIndices, lineMembers, neighbors, posLabel } from './puzzles';
 
 /** Fresh state with every row/column/region count fact pre-expanded. */
 export function initState(puzzle: Puzzle): PState {
@@ -7,7 +7,7 @@ export function initState(puzzle: Puzzle): PState {
   for (const kind of ['row', 'col', 'region'] as const) {
     for (const i of lineIndices(puzzle, kind)) {
       facts.push({
-        id: kind + i,
+        id: lineId(kind, i),
         kind,
         index: i,
         op: '=',

@@ -10,9 +10,9 @@ import type { Block, BlockResult, Fact, PState, Puzzle, RawLevel } from '../src/
 import levels from '../src/levels.json' with { type: 'json' };
 
 const puzzles = parseLevels(levels as RawLevel[]);
-/** 10x10 2★: region9 is E10 F10 G10 H10 — two king-move dominoes. */
+/** 10x10 2★: region10 is E10 F10 G10 H10 — two king-move dominoes. */
 const EXACT: Puzzle = puzzles[254];
-/** 14x14 3★: region10 is C10 D10 E10 F10 F11 G11 — three dominoes. */
+/** 14x14 3★: region11 is C10 D10 E10 F10 F11 G11 — three dominoes. */
 const LOWER: Puzzle = puzzles[351];
 
 function run(puzzle: Puzzle, text: string): { outcomes: string[]; final: PState; blocks: Block[] } {
@@ -30,36 +30,36 @@ const fact = (state: PState, id: string): Fact | undefined => state.facts.find(f
 const shape = (f: Fact | undefined): string =>
   f ? `${f.op} ${f.target} over ${f.cells.length} cells` : 'missing';
 
-const SPLIT_EXACT = '(split region9 _ (clique E10 F10) (clique G10 H10))';
+const SPLIT_EXACT = '(split region10 _ (clique E10 F10) (clique G10 H10))';
 
 test('an exact count splits into forced parts', () => {
   const { outcomes, final } = run(EXACT, SPLIT_EXACT);
   assert.equal(outcomes.at(-1)?.startsWith('ok'), true, outcomes.at(-1));
-  assert.equal(shape(fact(final, 'region9-1')), '= 1 over 2 cells');
-  assert.equal(shape(fact(final, 'region9-2')), '= 1 over 2 cells');
+  assert.equal(shape(fact(final, 'region10-1')), '= 1 over 2 cells');
+  assert.equal(shape(fact(final, 'region10-2')), '= 1 over 2 cells');
 });
 
 test('the parts are named after the hypothesis being split', () => {
   const { final } = run(EXACT, SPLIT_EXACT);
-  assert.equal(factName(fact(final, 'region9-1')!), 'region 10-1');
+  assert.equal(factName(fact(final, 'region10-1')!), 'region 10-1');
 });
 
 test('`as` names the parts instead', () => {
-  const { final } = run(EXACT, '(split region9 p (clique E10 F10) (clique G10 H10))');
+  const { final } = run(EXACT, '(split region10 p (clique E10 F10) (clique G10 H10))');
   assert.equal(shape(fact(final, 'p-1')), '= 1 over 2 cells');
   assert.equal(shape(fact(final, 'p-2')), '= 1 over 2 cells');
-  assert.equal(fact(final, 'region9-1'), undefined);
+  assert.equal(fact(final, 'region10-1'), undefined);
 });
 
 test('everything that went in is still there afterwards', () => {
   const { final } = run(EXACT, SPLIT_EXACT);
-  assert.ok(fact(final, 'region9'), 'the split hypothesis should remain');
+  assert.ok(fact(final, 'region10'), 'the split hypothesis should remain');
   assert.equal(final.facts.filter(f => f.id.startsWith('split:')).length, 0, 'no temporaries left behind');
 });
 
 test('a lower bound splits too', () => {
   const { outcomes, final } = run(LOWER, [
-    '(define low (- region10 (clique C10 D10)))',
+    '(define low (- region11 (clique C10 D10)))',
     '(split low _ (clique E10 F10) (clique F11 G11))',
   ].join('\n'));
   assert.equal(outcomes[0].startsWith('ok'), true, outcomes[0]);
@@ -77,59 +77,59 @@ test('an upper bound cannot be split', () => {
 
 test('a part that is a lower bound is rejected', () => {
   assert.equal(
-    last(EXACT, '(split region9 p (clique E10 F10) (- region9 (clique E10 F10)))'),
+    last(EXACT, '(split region10 p (clique E10 F10) (- region10 (clique E10 F10)))'),
     'error: each part needs an exact count or an upper bound',
   );
 });
 
 test('overlapping parts are rejected', () => {
   assert.equal(
-    last(EXACT, '(split region9 p (clique E10 F10) (clique F10 G10))'),
+    last(EXACT, '(split region10 p (clique E10 F10) (clique F10 G10))'),
     'error: F10 is in more than one part',
   );
 });
 
 test('parts that miss a cell are rejected', () => {
   assert.equal(
-    last(EXACT, '(split region9 p (clique E10 F10) (bound <= 1 G10))'),
+    last(EXACT, '(split region10 p (clique E10 F10) (bound <= 1 G10))'),
     'error: the parts do not cover region 10: H10 is missing',
   );
 });
 
 test('parts reaching outside the hypothesis are rejected', () => {
   assert.equal(
-    last(EXACT, '(split region9 p (clique E10 F10) (clique G10 H10) (bound <= 1 A1))'),
+    last(EXACT, '(split region10 p (clique E10 F10) (clique G10 H10) (bound <= 1 A1))'),
     'error: the parts do not cover region 10: A1 is not in it',
   );
 });
 
 test('parts whose bounds do not total the count are rejected', () => {
   assert.equal(
-    last(EXACT, '(split region9 p (bound <= 1 E10) (bound <= 1 F10) (bound <= 1 G10) (bound <= 1 H10))'),
+    last(EXACT, '(split region10 p (bound <= 1 E10) (bound <= 1 F10) (bound <= 1 G10) (bound <= 1 H10))'),
     'error: the parts total 4 but region 10 needs 2',
   );
 });
 
 test('a split needs at least two parts', () => {
-  assert.equal(last(EXACT, '(split region9 p (clique E10 F10))'), 'error: add at least two parts');
+  assert.equal(last(EXACT, '(split region10 p (clique E10 F10))'), 'error: add at least two parts');
 });
 
 test('a split of an unnamed hypothesis needs its own name', () => {
   assert.equal(
-    last(LOWER, '(split (- region10 (clique C10 D10)) _ (clique E10 F10) (clique F11 G11))'),
+    last(LOWER, '(split (- region11 (clique C10 D10)) _ (clique E10 F10) (clique F11 G11))'),
     'error: give this split a name with "as"',
   );
 });
 
 test('a result name that already exists is rejected', () => {
   assert.equal(
-    last(EXACT, '(define p-1 row0)\n(split region9 p (clique E10 F10) (clique G10 H10))'),
+    last(EXACT, '(define p-1 row1)\n(split region10 p (clique E10 F10) (clique G10 H10))'),
     'error: p-1 is already defined',
   );
 });
 
 test('a split round-trips through the text format', () => {
-  const withName = '(split region9 p (clique E10 F10) (clique G10 H10))';
+  const withName = '(split region10 p (clique E10 F10) (clique G10 H10))';
   for (const text of [SPLIT_EXACT, withName]) {
     const blocks = parseProof(text, EXACT);
     const printed = printProof(blocks, EXACT);
@@ -139,7 +139,7 @@ test('a split round-trips through the text format', () => {
 });
 
 test('split references survive blocks getting new ids', () => {
-  const blocks = parseProof(SPLIT_EXACT + '\n(clear region9-1)', EXACT);
+  const blocks = parseProof(SPLIT_EXACT + '\n(clear region10-1)', EXACT);
   const relabelled = JSON.parse(JSON.stringify(blocks), (key, value) =>
     (key === 'id' || key === 'eid') && typeof value === 'string' ? `fresh-${value}` : value) as Block[];
   const outcomes = (bs: Block[]) => {
@@ -157,10 +157,10 @@ test('adj accepts a single cell', () => {
 });
 
 test('a single-cell adj carries through a subsum and a split', () => {
-  // region10 is C10 D10 E10 F10 F11 G11 with 3 stars; dropping the lone cell G11
+  // region11 is C10 D10 E10 F10 F11 G11 with 3 stars; dropping the lone cell G11
   // leaves at least 2 among the rest, which splits into a pair and a triple.
   const { outcomes, final } = run(LOWER, [
-    '(define m (- region10 (clique G11)))',
+    '(define m (- region11 (clique G11)))',
     '(split m _ (clique C10 D10) (clique E10 F10 F11))',
   ].join('\n'));
   assert.equal(outcomes[0].startsWith('ok'), true, outcomes[0]);
@@ -173,26 +173,26 @@ test('adj still needs at least one cell', () => {
   assert.equal(last(EXACT, '(define x (clique))'), 'error: pick at least one cell on the board');
 });
 
-/** 10x10 2★ #1: region3 is the T tetromino I1 J1 J2 J3; region4 is C2 C3 D3 C4 D4 E3. */
+/** 10x10 2★ #1: region4 is the T tetromino I1 J1 J2 J3; region5 is C2 C3 D3 C4 D4 E3. */
 const TETROMINO: Puzzle = puzzles[250];
 
 test('a T tetromino splits into an L and a lone cell', () => {
-  const { outcomes, final } = run(TETROMINO, '(split region3 _ (clique I1 J1 J2) (clique J3))');
+  const { outcomes, final } = run(TETROMINO, '(split region4 _ (clique I1 J1 J2) (clique J3))');
   assert.equal(outcomes[0].startsWith('ok'), true, outcomes[0]);
-  assert.equal(shape(fact(final, 'region3-1')), '= 1 over 3 cells');
-  assert.equal(shape(fact(final, 'region3-2')), '= 1 over 1 cells');
+  assert.equal(shape(fact(final, 'region4-1')), '= 1 over 3 cells');
+  assert.equal(shape(fact(final, 'region4-2')), '= 1 over 1 cells');
 });
 
 test('a region becomes splittable once the board evolves', () => {
-  // region4 has no partition into two cliques as it stands. Inside a by-contradiction,
+  // region5 has no partition into two cliques as it stands. Inside a by-contradiction,
   // the assumed elimination of C2 normalizes it to one that does.
   const blocks = parseProof(
-    '(claim (is-star C2) (by-contradiction (body (split region4 _ (clique C3 D3 C4 D4) (clique E3))) (via _)))',
+    '(claim (is-star C2) (by-contradiction (body (split region5 _ (clique C3 D3 C4 D4) (clique E3))) (via _)))',
     TETROMINO);
   const { results } = evaluate(TETROMINO, blocks);
   const claim = blocks[0] as Extract<Block, { type: 'claim' }>;
   const contra = claim.body[0] as Extract<Block, { type: 'by_contradiction' }>;
   const split = results.get(contra.body[0].id) as BlockResult;
   assert.equal(split.status, 'ok', split.error);
-  assert.equal(shape(split.state.facts.find(f => f.id === 'region4-2')), '= 1 over 1 cells');
+  assert.equal(shape(split.state.facts.find(f => f.id === 'region5-2')), '= 1 over 1 cells');
 });

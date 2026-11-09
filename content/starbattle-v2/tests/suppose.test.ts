@@ -58,10 +58,10 @@ test('a supposition proved by a claim can then be discharged', () => {
   // import: proving `is-star A1` already stars A1 and eliminates B1 beside it. Clearing the
   // rest of the row is the part that only follows inside the supposition.
   //
-  // `row0` is the row A1 sits in: line fact ids count from zero while cell labels count
-  //rows from one, so A1 is in `row0` and `row1` is the row below it.
+  // `row1` is the row A1 sits in: line fact ids count from zero while cell labels count
+  //rows from one, so A1 is in `row1` and `row2` is the row below it.
   const { results, final } = run(`
-    (suppose S (is-star A1) (elims row0))
+    (suppose S (is-star A1) (elims row1))
     (claim (is-star A1) (sorry))
     (use S)
   `);
@@ -99,7 +99,7 @@ test('two suppositions cannot share a name', () => {
 
 test('discharging twice adds nothing the second time', () => {
   const { results } = run(`
-    (suppose S (is-star A1) (elims row0))
+    (suppose S (is-star A1) (elims row1))
     (claim (is-star A1) (sorry))
     (use S)
     (use S)
@@ -109,7 +109,7 @@ test('discharging twice adds nothing the second time', () => {
 });
 
 test('a supposition round-trips through the text format', () => {
-  const text = '(suppose S (is-star A1)\n (elims row1))';
+  const text = '(suppose S (is-star A1)\n (elims row2))';
   const blocks = parseProof(text, P);
   const printed = printProof(blocks, P);
   const again = parseProof(printed, P);
@@ -136,7 +136,7 @@ test('a use survives its blocks getting new ids', () => {
 test('the contrapositive composes from a forward use inside a by-contradiction', () => {
   const { results } = run(`
     (suppose S (is-star A1))
-    (claim (is-elim A1) (by-contradiction (body (use S)) (via region1)))
+    (claim (is-elim A1) (by-contradiction (body (use S)) (via region2)))
   `);
   const all = statuses(results);
   assert.equal(all[0], 'ok', `the supposition should record: ${all.join(' / ')}`);
