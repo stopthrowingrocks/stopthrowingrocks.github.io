@@ -137,7 +137,13 @@ export type Block =
   | { id: string; type: 'claim'; pred: BoolExpr | null; body: Block[] }
   | { id: string; type: 'by_contradiction'; body: Block[]; contradiction: HypExpr | null }
   | { id: string; type: 'constructor'; left: Block[]; right: Block[] }
-  | { id: string; type: 'by_cases'; split: 'left' | 'right'; positive: Block[]; negative: Block[] };
+  | { id: string; type: 'by_cases'; split: 'left' | 'right'; positive: Block[]; negative: Block[] }
+  /**
+   * Or-elimination: a disjunction you already hold, discharged by proving the enclosing goal
+   * from each disjunct in turn. The counterpart to `by_cases`, which proves a disjunctive
+   * goal rather than consuming a disjunctive fact.
+   */
+  | { id: string; type: 'or_elim'; pred: BoolExpr | null; left: Block[]; right: Block[] };
 
 export type BlockType = Block['type'];
 

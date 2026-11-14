@@ -271,6 +271,15 @@ function printBlockCore(b: Block, puzzle: Puzzle, results?: Results): Sx {
       const right = b.right.map(child => printBlock(child, puzzle, results));
       return tagged('constructor', [tagged('left', left), tagged('right', right)]);
     }
+    case 'or_elim': {
+      const left = b.left.map(child => printBlock(child, puzzle, results));
+      const right = b.right.map(child => printBlock(child, puzzle, results));
+      return {
+        t: 'list',
+        v: [atom('or-elim'), printBool(b.pred, puzzle), tagged('left', left), tagged('right', right)],
+        line: 0,
+      };
+    }
     case 'by_cases': {
       const positive = b.positive.map(child => printBlock(child, puzzle, results));
       const negative = b.negative.map(child => printBlock(child, puzzle, results));
@@ -511,6 +520,16 @@ function parseStmt(sx: Sx, puzzle: Puzzle): Block {
       const left = leftItems.map(s => parseStmt(s, puzzle));
       const right = rightItems.map(s => parseStmt(s, puzzle));
       return { id, type: 'constructor', left, right };
+    }
+    case 'or-elim': {
+      const pred = parseBool(items[1], puzzle);
+      const leftItems = section(items.slice(2), 'left', sx.line);
+      const rightItems = section(items.slice(2), 'right', sx.line);
+      return {
+        id, type: 'or_elim', pred,
+        left: leftItems.map(s => parseStmt(s, puzzle)),
+        right: rightItems.map(s => parseStmt(s, puzzle)),
+      };
     }
     case 'by-cases': {
       const split = expectAtom(items[1], '"left" or "right"');

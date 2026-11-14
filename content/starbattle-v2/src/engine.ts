@@ -637,6 +637,7 @@ export function childContainers(b: Block): [string, Block[]][] {
   if (b.type === 'claim' || b.type === 'by_contradiction' || b.type === 'suppose') return [[b.id, b.body]];
   if (b.type === 'constructor') return [[`${b.id}:left`, b.left], [`${b.id}:right`, b.right]];
   if (b.type === 'by_cases') return [[`${b.id}:positive`, b.positive], [`${b.id}:negative`, b.negative]];
+  if (b.type === 'or_elim') return [[`${b.id}:left`, b.left], [`${b.id}:right`, b.right]];
   return [];
 }
 
@@ -1178,6 +1179,36 @@ function evalSeq(
         if (sequenceErrored(b.left, results) || sequenceErrored(b.right, results)) error = 'a constructor branch contains an invalid step';
         else if (!goalSatisfied(left, goal.a) || !goalSatisfied(right, goal.b)) error = 'both constructor goals must be proved';
         else { addGoalFacts(next, puzzle, goal, 'prv'); note = 'both sides proved'; }
+        break;
+      }
+      /*
+       * Or-elimination. `by_cases` proves a disjunctive goal; this consumes a disjunctive
+       * fact, which until now nothing could do — a held `or` was inert, provable but never
+       * usable. Both arms aim at the enclosing goal, each with one disjunct assumed, so what
+       * they establish is what follows from the disjunction however it turns out.
+       */
+      case 'or_elim': {
+        if (!goal) { error = 'or elimination needs a goal to prove'; skipChildren(b, results, entries, prev); break; }
+        if (b.pred?.kind !== 'or') { error = 'or elimination needs a disjunction to take apart'; skipChildren(b, results, entries, prev); break; }
+        if (!goalSatisfied(prev, b.pred)) {
+          error = 'that disjunction is not established here';
+          skipChildren(b, results, entries, prev);
+          break;
+        }
+        const onLeft = cloneState(prev), onRight = cloneState(prev);
+        const le = addGoalFacts(onLeft, puzzle, b.pred.a, 'asm');
+        const re = addGoalFacts(onRight, puzzle, b.pred.b, 'asm');
+        if (le || re) { error = le ?? re ?? undefined; skipChildren(b, results, entries, prev); break; }
+        const left = evalSeq(puzzle, b.left, onLeft, results, entries, `${b.id}:left`, goal);
+        const right = evalSeq(puzzle, b.right, onRight, results, entries, `${b.id}:right`, goal);
+        if (sequenceErrored(b.left, results) || sequenceErrored(b.right, results)) {
+          error = 'an arm of the or elimination contains an invalid step';
+        } else if (!goalSatisfied(left, goal) || !goalSatisfied(right, goal)) {
+          error = 'both arms must prove the goal';
+        } else {
+          addGoalFacts(next, puzzle, goal, 'prv');
+          note = 'the goal follows from either disjunct';
+        }
         break;
       }
       case 'by_cases': {

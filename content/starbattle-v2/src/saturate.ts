@@ -344,9 +344,9 @@ function forgetAround(before: PState, after: PState, attempted: Map<string, numb
 /** Rebuild a block with its nested bodies mapped. */
 function mapBodies(block: Block, f: (body: Block[]) => Block[]): Block {
   switch (block.type) {
-    case 'argument': case 'claim': case 'by_contradiction':
+    case 'argument': case 'claim': case 'by_contradiction': case 'suppose':
       return { ...block, body: f(block.body) };
-    case 'constructor':
+    case 'constructor': case 'or_elim':
       return { ...block, left: f(block.left), right: f(block.right) };
     case 'by_cases':
       return { ...block, positive: f(block.positive), negative: f(block.negative) };

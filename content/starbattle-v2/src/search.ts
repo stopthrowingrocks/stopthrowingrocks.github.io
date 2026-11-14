@@ -87,6 +87,9 @@ export function statementCost(block: Block): number {
       return 1;
     case 'constructor':
       return 1 + proofCost(block.left) + proofCost(block.right);
+    // Priced like the case split it is: the rule, the disjunction it names, and both arms.
+    case 'or_elim':
+      return 1 + boolCost(block.pred) + proofCost(block.left) + proofCost(block.right);
     case 'by_cases':
       return 1 + proofCost(block.positive) + proofCost(block.negative);
     default:

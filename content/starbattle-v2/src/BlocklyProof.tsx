@@ -574,6 +574,21 @@ function registerBlocks() {
         'to be established here first.');
     },
   };
+  Blockly.Blocks.sb_or_elim = {
+    init() {
+      this.appendValueInput('PRED').setCheck('Boolean').appendField('from either side of');
+      this.appendDummyInput().appendField('if the left one holds');
+      this.appendStatementInput('LEFT').setCheck('Proof');
+      this.appendDummyInput().appendField('if the right one holds');
+      this.appendStatementInput('RIGHT').setCheck('Proof');
+      this.setInputsInline(false);
+      this.setPreviousStatement(true, 'Proof');
+      this.setNextStatement(true, 'Proof');
+      this.setColour(210);
+      this.setTooltip('Use a disjunction you have already proved: show the enclosing goal ' +
+        'follows from each side, so it follows whichever side is true.');
+    },
+  };
   Blockly.Blocks.sb_claim = {
     init() {
       this.appendValueInput('PRED').setCheck('Boolean').appendField('claim');
@@ -701,6 +716,7 @@ function makeToolbox(facts: Fact[]): Blockly.utils.toolbox.ToolboxDefinition {
     { kind: 'block', type: 'sb_bound' },
     { kind: 'block', type: 'sb_argument' },
     { kind: 'block', type: 'sb_claim' },
+    { kind: 'block', type: 'sb_or_elim' },
     { kind: 'block', type: 'sb_suppose' },
     { kind: 'block', type: 'sb_use' },
     { kind: 'block', type: 'sb_by_contradiction' },
@@ -843,6 +859,13 @@ function proofBlock(block: Blockly.Block, puzzle: Puzzle): Block | null {
     }
     case 'sb_sorry': return { id: block.id, type: 'sorry' };
     case 'sb_argument': return { id: block.id, type: 'argument', body: proofSequence(block.getInputTargetBlock('BODY'), puzzle) };
+    case 'sb_or_elim': return {
+      id: block.id,
+      type: 'or_elim',
+      pred: boolExpr(block.getInputTargetBlock('PRED'), puzzle),
+      left: proofSequence(block.getInputTargetBlock('LEFT'), puzzle),
+      right: proofSequence(block.getInputTargetBlock('RIGHT'), puzzle),
+    };
     case 'sb_suppose': return {
       id: block.id,
       type: 'suppose',
@@ -1148,6 +1171,13 @@ function buildStmt(workspace: Blockly.WorkspaceSvg, b: Block, puzzle: Puzzle): B
     case 'argument': {
       const block = newBuiltBlock(workspace, 'sb_argument');
       connectStatement(block, 'BODY', buildSequence(workspace, b.body, puzzle));
+      return block;
+    }
+    case 'or_elim': {
+      const block = newBuiltBlock(workspace, 'sb_or_elim');
+      connectValue(block, 'PRED', buildBool(workspace, b.pred, puzzle));
+      connectStatement(block, 'LEFT', buildSequence(workspace, b.left, puzzle));
+      connectStatement(block, 'RIGHT', buildSequence(workspace, b.right, puzzle));
       return block;
     }
     case 'suppose': {
