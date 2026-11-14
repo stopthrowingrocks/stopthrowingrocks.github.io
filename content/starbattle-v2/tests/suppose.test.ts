@@ -144,3 +144,22 @@ test('the contrapositive composes from a forward use inside a by-contradiction',
   assert.ok(!all.some(s => s.includes('not established')),
     `A1 is assumed inside the body, so the use should hold: ${all.join(' / ')}`);
 });
+
+/*
+ * Selecting a block shows its `scope` if it has one, else the state after it (App.tsx). A
+ * supposition deliberately leaves the outer board untouched, so without a scope, focusing one
+ * would show the single board the block says nothing about -- the outer one. It reports the
+ * body's end state instead: the board under the supposition, with the body applied.
+ */
+test('focusing a supposition shows the context inside it', () => {
+  const blocks = parseProof('(suppose S (is-star A1) (elims row1))', P);
+  const { results } = evaluate(P, blocks);
+  const inside = results.get(blocks[0].id)!;
+  assert.equal(inside.status, 'ok');
+  assert.ok(inside.scope, 'a supposition reports the board inside it');
+  assert.equal(inside.scope!.cells[0], 'star', 'A1 is starred under the supposition');
+  assert.equal(inside.scope!.cells[2], 'elim', 'C1 was cleared by the body');
+  // ...while the state the proof carries on with is untouched.
+  assert.equal(inside.state.cells[0], null, 'nothing escapes to the outer board');
+  assert.equal(inside.prev.cells[0], null);
+});

@@ -1005,6 +1005,10 @@ function evalSeq(
           break;
         }
         const end = evalSeq(puzzle, b.body, opened, results, entries, b.id, null);
+        // Selecting the block shows this rather than the outer board, which is the whole
+        // point of a supposition: the outer state is deliberately untouched, so without it
+        // focusing a `suppose` would show you the one board the block says nothing about.
+        scope = end;
         if (sequenceErrored(b.body, results)) {
           error = 'the supposition contains an invalid step';
         } else {
