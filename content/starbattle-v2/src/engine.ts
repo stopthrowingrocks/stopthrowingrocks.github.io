@@ -526,12 +526,21 @@ function applySplit(
     label: `${labelPrefix}-${index + 1}`,
     cells: [...piece.cells],
     target: piece.target,
+    /*
+     * A part written as a bare reference is already a hypothesis with a name of its own, and
+     * the fact a split would emit for it would say exactly the same thing. Naming it twice
+     * only crowds the pool, so the existing hypothesis stands in and the part is numbered but
+     * not emitted. Numbering stays positional, so the other parts keep the names they had.
+     */
+    reuse: parts[index].kind === 'ref' ? parts[index].factId : null,
   }));
   for (const result of results) {
+    if (result.reuse) continue;
     if (s.facts.some(fact => fact.id === result.id)) return fail(`${result.id} is already defined`);
   }
   dropTemporaries();
   for (const result of results) {
+    if (result.reuse) continue;
     s.facts.push({
       id: result.id, kind: 'derived', index: 0, label: result.label,
       op: '=', cells: result.cells, target: result.target, impossible: false,
@@ -539,7 +548,9 @@ function applySplit(
   }
   normalize(s);
   return {
-    note: results.map(result => `${result.label}: ★{${listed(result.cells)}} = ${result.target}`).join('; '),
+    note: results.map(result => (result.reuse
+      ? `${result.label}: already known as ${result.reuse}`
+      : `${result.label}: ★{${listed(result.cells)}} = ${result.target}`)).join('; '),
   };
 }
 
@@ -827,10 +838,33 @@ function goalSatisfied(s: PState, pred: BoolExpr | null): boolean {
   if (pred?.kind === 'is_elim') return s.cells[pred.cell] === 'elim';
   if (pred?.kind === 'not' && pred.a?.kind === 'is_star') return s.cells[pred.a.cell] === 'elim';
   if (pred?.kind === 'not' && pred.a?.kind === 'is_elim') return s.cells[pred.a.cell] === 'star';
+  /*
+   * A star count over cells that are all settled is simply known, so read it off the board.
+   *
+   * Matching a fact is not enough on its own. `normalize` deletes a cell from every fact as
+   * soon as it settles, so a count whose cells have been resolved has no fact left naming it,
+   * even though its value is now certain. That made a conclusion unstatable in exactly the arm
+   * that proved it hardest: `count{K14,L14} = 1` holds once K14 is a star and L14 is out, but
+   * no fact spans both cells any more, so the arm could not meet a goal the board had settled.
+   * Two arms of a case split must state their shared conclusion the same way, and without this
+   * the form of a fact depends on which arm's history produced it.
+   */
+  const knownCount = (cells: number[], op: FactOp, k: number): boolean => {
+    let stars = 0;
+    for (const c of cells) {
+      if (s.cells[c] === 'star') stars++;
+      else if (s.cells[c] === null) return false;   // still open: the board does not decide it
+    }
+    if (op === '=') return stars === k;
+    if (op === '!=') return stars !== k;
+    if (op === '<=') return stars <= k;
+    return stars >= k;
+  };
   const key = propositionKey(pred);
   if (key !== null && s.propositions.some(prop => propositionKey(prop) === key)) return true;
   const c = claimConclusion(pred);
-  return !('error' in c) && c.lits.every(l => s.facts.some(f => f.op === l.op && f.target === l.k && sameCells(f.cells, l.cells)));
+  return !('error' in c) && c.lits.every(l => knownCount(l.cells, l.op, l.k)
+    || s.facts.some(f => f.op === l.op && f.target === l.k && sameCells(f.cells, l.cells)));
 }
 
 function sequenceErrored(blocks: Block[], results: Map<string, BlockResult>): boolean {
@@ -869,6 +903,32 @@ function skipChildren(
   }
 }
 
+/**
+ * What is being proved where a block sits, and under what assumptions -- carried alongside the
+ * proof obligation rather than inside it, because the two come apart: a `by-contradiction`
+ * body owes a contradiction while the claim around it still owes its goal.
+ */
+export interface GoalContext { proving: BoolExpr | null; assumed: BoolExpr[] }
+const NO_CONTEXT: GoalContext = { proving: null, assumed: [] };
+/**
+ * `not (is-elim X)` reads better as `is-star X`. A cell is one or the other, so they say the
+ * same thing -- but only the context is rewritten; the assumption the engine actually applies
+ * is left as the rule built it.
+ */
+const plainly = (pred: BoolExpr | null): BoolExpr | null => {
+  if (pred?.kind === 'not' && pred.a?.kind === 'is_elim') {
+    return { eid: pred.eid, kind: 'is_star', cell: pred.a.cell };
+  }
+  if (pred?.kind === 'not' && pred.a?.kind === 'is_star') {
+    return { eid: pred.eid, kind: 'is_elim', cell: pred.a.cell };
+  }
+  return pred;
+};
+
+/** The same context with one more assumption in force. */
+const under = (ctx: GoalContext, pred: BoolExpr | null): GoalContext =>
+  pred ? { ...ctx, assumed: [...ctx.assumed, plainly(pred)!] } : ctx;
+
 function evalSeq(
   puzzle: Puzzle,
   blocks: Block[],
@@ -877,6 +937,7 @@ function evalSeq(
   entries: Map<string, PState>,
   containerId: string,
   goal: BoolExpr | null = null,
+  ctx: GoalContext = NO_CONTEXT,
 ): PState {
   entries.set(containerId, start);
   let cur = start;
@@ -884,7 +945,8 @@ function evalSeq(
   for (const b of blocks) {
     if (halted || cur.contradiction) {
       const note = cur.contradiction ? 'unreachable — contradiction already reached' : undefined;
-      results.set(b.id, { status: 'skipped', prev: cur, state: cur, note });
+      results.set(b.id, { status: 'skipped', prev: cur, state: cur, note,
+        goal: ctx.proving, assumed: ctx.assumed });
       skipChildren(b, results, entries, cur, note);
       continue;
     }
@@ -957,7 +1019,7 @@ function evalSeq(
         break;
       }
       case 'argument': {
-        const end = evalSeq(puzzle, b.body, cloneState(prev), results, entries, b.id, goal);
+        const end = evalSeq(puzzle, b.body, cloneState(prev), results, entries, b.id, goal, ctx);
         if (sequenceErrored(b.body, results)) {
           error = 'the argument contains an invalid step';
         } else {
@@ -1004,7 +1066,7 @@ function evalSeq(
           skipChildren(b, results, entries, prev);
           break;
         }
-        const end = evalSeq(puzzle, b.body, opened, results, entries, b.id, null);
+        const end = evalSeq(puzzle, b.body, opened, results, entries, b.id, null, under(ctx, b.pred));
         // Selecting the block shows this rather than the outer board, which is the whole
         // point of a supposition: the outer state is deliberately untouched, so without it
         // focusing a `suppose` would show you the one board the block says nothing about.
@@ -1114,7 +1176,8 @@ function evalSeq(
           skipChildren(b, results, entries, prev);
           break;
         }
-        const end = evalSeq(puzzle, b.body, cloneState(prev), results, entries, b.id, b.pred);
+        const end = evalSeq(puzzle, b.body, cloneState(prev), results, entries, b.id, b.pred,
+          { proving: b.pred, assumed: ctx.assumed });
         if (sequenceErrored(b.body, results)) {
           error = 'the claim proof contains an invalid step';
         } else if (!goalSatisfied(end, b.pred)) {
@@ -1143,7 +1206,8 @@ function evalSeq(
           : { eid: `${b.id}-neg`, kind: 'not', a: goal };
         error = addGoalFacts(inner, puzzle, negatedGoal, 'asm') ?? undefined;
         if (error) { skipChildren(b, results, entries, prev); break; }
-        const end = evalSeq(puzzle, b.body, inner, results, entries, b.id);
+        const end = evalSeq(puzzle, b.body, inner, results, entries, b.id, null,
+          under(ctx, negatedGoal));
         scope = end;
         if (sequenceErrored(b.body, results)) error = 'the contradiction proof contains an invalid step';
         else if (end.admitted) {
@@ -1178,8 +1242,10 @@ function evalSeq(
       }
       case 'constructor': {
         if (!goal || goal.kind !== 'and') { error = 'constructor requires an AND goal'; skipChildren(b, results, entries, prev); break; }
-        const left = evalSeq(puzzle, b.left, cloneState(prev), results, entries, `${b.id}:left`, goal.a);
-        const right = evalSeq(puzzle, b.right, cloneState(prev), results, entries, `${b.id}:right`, goal.b);
+        const left = evalSeq(puzzle, b.left, cloneState(prev), results, entries, `${b.id}:left`, goal.a,
+          { proving: goal.a, assumed: ctx.assumed });
+        const right = evalSeq(puzzle, b.right, cloneState(prev), results, entries, `${b.id}:right`, goal.b,
+          { proving: goal.b, assumed: ctx.assumed });
         if (sequenceErrored(b.left, results) || sequenceErrored(b.right, results)) error = 'a constructor branch contains an invalid step';
         else if (!goalSatisfied(left, goal.a) || !goalSatisfied(right, goal.b)) error = 'both constructor goals must be proved';
         else { addGoalFacts(next, puzzle, goal, 'prv'); note = 'both sides proved'; }
@@ -1203,8 +1269,10 @@ function evalSeq(
         const le = addGoalFacts(onLeft, puzzle, b.pred.a, 'asm');
         const re = addGoalFacts(onRight, puzzle, b.pred.b, 'asm');
         if (le || re) { error = le ?? re ?? undefined; skipChildren(b, results, entries, prev); break; }
-        const left = evalSeq(puzzle, b.left, onLeft, results, entries, `${b.id}:left`, goal);
-        const right = evalSeq(puzzle, b.right, onRight, results, entries, `${b.id}:right`, goal);
+        const left = evalSeq(puzzle, b.left, onLeft, results, entries, `${b.id}:left`, goal,
+          under({ proving: goal, assumed: ctx.assumed }, b.pred.a));
+        const right = evalSeq(puzzle, b.right, onRight, results, entries, `${b.id}:right`, goal,
+          under({ proving: goal, assumed: ctx.assumed }, b.pred.b));
         if (sequenceErrored(b.left, results) || sequenceErrored(b.right, results)) {
           error = 'an arm of the or elimination contains an invalid step';
         } else if (!goalSatisfied(left, goal) || !goalSatisfied(right, goal)) {
@@ -1223,8 +1291,11 @@ function evalSeq(
         const ae = addGoalFacts(pos, puzzle, split, 'asm');
         const ne = addGoalFacts(neg, puzzle, { eid: `${b.id}-neg`, kind: 'not', a: split }, 'asm');
         if (ae || ne) { error = ae ?? ne ?? undefined; skipChildren(b, results, entries, prev); break; }
-        evalSeq(puzzle, b.positive, pos, results, entries, `${b.id}:positive`, split);
-        const negative = evalSeq(puzzle, b.negative, neg, results, entries, `${b.id}:negative`, other);
+        evalSeq(puzzle, b.positive, pos, results, entries, `${b.id}:positive`, split,
+          under({ proving: split, assumed: ctx.assumed }, split));
+        const negated: BoolExpr = { eid: `${b.id}-negctx`, kind: 'not', a: split };
+        const negative = evalSeq(puzzle, b.negative, neg, results, entries, `${b.id}:negative`, other,
+          under({ proving: other, assumed: ctx.assumed }, negated));
         if (sequenceErrored(b.positive, results) || sequenceErrored(b.negative, results)) error = 'a case branch contains an invalid step';
         else if (!goalSatisfied(negative, other)) error = 'the negative case did not prove the other disjunct';
         else { addGoalFacts(next, puzzle, goal, 'prv'); note = 'both cases close the OR goal'; }
@@ -1233,10 +1304,12 @@ function evalSeq(
     }
 
     if (error) {
-      results.set(b.id, { status: 'error', error, prev, state: prev, scope });
+      results.set(b.id, { status: 'error', error, prev, state: prev, scope,
+        goal: ctx.proving, assumed: ctx.assumed });
       halted = true;
     } else {
-      results.set(b.id, { status: 'ok', note, prev, state: next, scope });
+      results.set(b.id, { status: 'ok', note, prev, state: next, scope,
+        goal: ctx.proving, assumed: ctx.assumed });
       cur = next;
     }
   }

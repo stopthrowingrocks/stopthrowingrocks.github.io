@@ -159,4 +159,15 @@ export interface BlockResult {
   state: PState;
   /** Contextual state used by value inputs that appear after a nested body. */
   scope?: PState;
+  /**
+   * What the enclosing claim is trying to prove where this block sits, and every assumption in
+   * force over it, outermost first.
+   *
+   * These are not the same as the proof obligation the engine threads. Inside a
+   * `by-contradiction` the obligation is a contradiction, not the claim's goal -- but the goal
+   * is still what the reader needs to see, alongside the negation that was assumed to get
+   * there. A step three branches deep is unreadable without them.
+   */
+  goal?: BoolExpr | null;
+  assumed?: BoolExpr[];
 }

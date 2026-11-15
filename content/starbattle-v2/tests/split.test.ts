@@ -196,3 +196,31 @@ test('a region becomes splittable once the board evolves', () => {
   assert.equal(split.status, 'ok', split.error);
   assert.equal(shape(split.state.facts.find(f => f.id === 'region5-2')), '= 1 over 1 cells');
 });
+
+/*
+ * A part written as a bare hypothesis reference already has a name and a fact. The one a split
+ * would emit for it says exactly the same thing, so it is numbered but not emitted -- naming
+ * one hypothesis twice only crowds the pool, and the two can then drift apart in the UI while
+ * meaning the same thing.
+ */
+test('a split does not re-emit a part that is already a known hypothesis', () => {
+  const { outcomes, final } = run(EXACT, '(split (+ colA colB) pair colA colB)');
+  assert.equal(outcomes[0].startsWith('ok'), true, outcomes[0]);
+  assert.match(outcomes[0], /pair-1: already known as colA/);
+  assert.match(outcomes[0], /pair-2: already known as colB/);
+  assert.equal(fact(final, 'pair-1'), undefined, 'colA already says this');
+  assert.equal(fact(final, 'pair-2'), undefined, 'colB already says this');
+  assert.ok(fact(final, 'colA'), 'the hypothesis it stands in for survives');
+  assert.ok(fact(final, 'colB'));
+});
+
+test('parts that are not bare references are still emitted, keeping their numbers', () => {
+  // Part 1 is a reference; part 2 is the same cells reached by arithmetic, so it is emitted.
+  const { outcomes, final } = run(EXACT,
+    '(split (+ colA colB) pair colA (- (+ colA colB) colA))');
+  assert.equal(outcomes[0].startsWith('ok'), true, outcomes[0]);
+  assert.equal(fact(final, 'pair-1'), undefined, 'the reference part is not re-emitted');
+  // Numbering is positional, so part 2 keeps the name it would have had.
+  assert.ok(fact(final, 'pair-2'), 'the computed part keeps its number');
+  assert.equal(fact(final, 'pair-2')!.target, 2);
+});

@@ -122,7 +122,7 @@
 
 (stars region1-2)  ; ok: ★ B3
 
-(stars region1-1)  ; ok: ★ A8
+(stars colA)  ; ok: ★ A8
 
 (stars region9)  ; ok: ★ C8
 
