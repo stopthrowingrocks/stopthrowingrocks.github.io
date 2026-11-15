@@ -1249,6 +1249,13 @@ export interface ProofWorkspaceHandle {
   stopPicking: () => void;
   /** Scope back to the end of the proof (a click on dead space). */
   resetScope: () => void;
+  /**
+   * Scroll the workspace by a pixel delta.
+   *
+   * The workspace is an SVG canvas with its own scroll, not a DOM element with `scrollTop`, so
+   * reaching a drop target below the fold during a drag has to go through Blockly.
+   */
+  scrollWorkspaceBy: (dx: number, dy: number) => void;
 }
 
 interface ProofWorkspaceProps extends BlocklyContext {
@@ -1363,6 +1370,15 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
   }, [puzzle]);
 
   useImperativeHandle(ref, () => ({
+    scrollWorkspaceBy(dx: number, dy: number) {
+      const workspace = workspaceRef.current;
+      if (!workspace) return;
+      const metrics = workspace.getMetrics();
+      if (!metrics) return;
+      // Blockly's scroll is in the opposite sense to a scrollTop: moving the canvas up to see
+      // what is below means a more negative scrollY.
+      workspace.scroll(workspace.scrollX - dx, workspace.scrollY - dy);
+    },
     clearProof() {
       const workspace = workspaceRef.current;
       if (!workspace) return;

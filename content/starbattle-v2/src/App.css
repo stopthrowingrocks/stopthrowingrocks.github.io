@@ -238,3 +238,41 @@
   .header-help { display: none; }
   #content-board { width: 390px; }
 }
+
+/* What the selected step is working under, at the foot of the facts list. */
+.context {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line, #d7d7de);
+}
+.context-title {
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding-bottom: 4px;
+}
+.context-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.context-label {
+  flex: none;
+  min-width: 62px;
+  color: var(--text);
+  opacity: 0.7;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.context-val {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  overflow-wrap: anywhere;
+  color: var(--text-h, inherit);
+}
+/* An assumption is the one thing here that is not known to be true. */
+.context-row.assumed .context-val { color: #c2185b; }
+.context-row.none .context-val { opacity: 0.55; font-family: inherit; }

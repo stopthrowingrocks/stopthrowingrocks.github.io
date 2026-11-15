@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Block, Fact, HypExpr, PState, Puzzle } from './types';
 import { parseLevels, groupPuzzles, factName, posLabel, REGION_COLORS } from './puzzles';
 import { childContainers, containsSorry, evaluate, hypothesisForm, isSolved, opSymbol } from './engine';
+import { printGoal } from './proofText';
 import { Board, type Coverage } from './Board';
 import { BlocklyProof, type ProofWorkspaceHandle } from './BlocklyProof';
 import levelsData from './levels.json';
@@ -48,6 +49,9 @@ function App() {
   const [searchActive, setSearchActive] = useState(false);
   const [searchCells, setSearchCells] = useState<number[]>([]);
   const [hoverFact, setHoverFact] = useState<string | null>(null);
+  /** True while a hypothesis is in hand, so wheel and edge scrolling are live. */
+  const [dragging, setDragging] = useState(false);
+  const factsRef = useRef<HTMLDivElement>(null);
   const [renames, setRenames] = useState<Record<string, string>>({});
   const [editingFact, setEditingFact] = useState<string | null>(null);
   const workspaceRef = useRef<ProofWorkspaceHandle>(null);
@@ -131,12 +135,68 @@ function App() {
       ? new Set(pickedCells)
       : selectedFact
         ? new Set(selectedFact.cells)
-        : hoverFact
-          ? new Set(displayState.facts.find(fact => fact.id === hoverFact)?.cells ?? [])
-          : null;
+        : null;
+  /*
+   * The hovered hypothesis gets its own channel rather than the tail of that chain. It used to
+   * be the last fallback, so picking cells or holding a split -- exactly when you most want to
+   * ask what a hypothesis covers -- outranked it and the hover showed nothing.
+   */
+  const hoveredCells = hoverFact
+    ? new Set(displayState.facts.find(fact => fact.id === hoverFact)?.cells ?? [])
+    : null;
   const visibleFacts = searchActive && searchCells.length > 0
     ? displayState.facts.filter(fact => fact.cells.some(cell => searchCells.includes(cell)))
     : displayState.facts;
+
+  /*
+   * Scrolling while a hypothesis is in hand.
+   *
+   * A native HTML5 drag swallows wheel events in most browsers, so a drag that starts in the
+   * facts list cannot otherwise reach a drop target below the fold. `dragover` does keep
+   * firing, with coordinates, so the pointer nearing an edge scrolls whatever is under it --
+   * the facts list by `scrollTop`, the workspace through Blockly, which scrolls its own canvas
+   * rather than a DOM element. A `wheel` listener is registered too, for browsers that do
+   * deliver it: it costs nothing where they don't.
+   */
+  const pointerIn = (el: HTMLElement, x: number, y: number) => {
+    const b = el.getBoundingClientRect();
+    return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom;
+  };
+  const EDGE = 48;      // how close to an edge starts scrolling
+  const EDGE_STEP = 14; // pixels per dragover tick
+
+  function scrollUnderPointer(clientX: number, clientY: number, dy: number) {
+    if (dy === 0) return;
+    const list = factsRef.current;
+    if (list) {
+      const box = list.getBoundingClientRect();
+      if (clientX >= box.left && clientX <= box.right && clientY >= box.top && clientY <= box.bottom) {
+        list.scrollTop += dy;
+        return;
+      }
+    }
+    workspaceRef.current?.scrollWorkspaceBy(0, dy);
+  }
+
+  function autoScrollOnDrag(event: React.DragEvent) {
+    const list = factsRef.current;
+    const host = event.currentTarget as HTMLElement;
+    const box = (list && pointerIn(list, event.clientX, event.clientY))
+      ? list.getBoundingClientRect()
+      : host.getBoundingClientRect();
+    if (event.clientY - box.top < EDGE) scrollUnderPointer(event.clientX, event.clientY, -EDGE_STEP);
+    else if (box.bottom - event.clientY < EDGE) scrollUnderPointer(event.clientX, event.clientY, EDGE_STEP);
+  }
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      scrollUnderPointer(event.clientX, event.clientY, event.deltaY);
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => window.removeEventListener('wheel', onWheel);
+  }, [dragging]);
 
   /** A click on neutral space drops the whole working context: search and scope. */
   function clearContext() {
@@ -268,6 +328,7 @@ function App() {
             puzzle={puzzle}
             cells={displayState.cells}
             highlight={highlighted}
+            hover={hoveredCells}
             coverage={splitCoverage}
             picking={picking || searchActive}
             onCell={
@@ -284,7 +345,7 @@ function App() {
           {selectedHypothesisForm && 'error' in selectedHypothesisForm && (
             <div className="board-caption">Hypothesis: {selectedHypothesisForm.error}</div>
           )}
-          <div className="facts">
+          <div className="facts" ref={factsRef}>
             <div className="facts-title">
               <span>Known facts</span>
               <button
@@ -326,8 +387,10 @@ function App() {
                   event.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
                   requestAnimationFrame(() => ghost.remove());
                   setHoverFact(fact.id);
+                  setDragging(true);
                 }}
-                onDragEnd={() => setHoverFact(null)}
+                onDragEnd={() => { setHoverFact(null); setDragging(false); }}
+                onDragOver={event => autoScrollOnDrag(event)}
               >
                 {fact.kind === 'region' && <span className="fact-chip" style={{ background: REGION_COLORS[fact.index] ?? '#ddd' }} />}
                 {editingFact === fact.id ? (
@@ -350,6 +413,38 @@ function App() {
                 {fact.impossible && <span>impossible!</span>}
               </div>
             ))}
+            {/*
+              Inside the scrolling facts list rather than beside it: what a step is working
+              under belongs with what it knows, and reads at the end of that list.
+            */}
+            {selected && (
+              <div className="context">
+                <div className="context-title">Working under</div>
+                {selected.goal ? (
+                  <div className="context-row">
+                    <span className="context-label">goal</span>
+                    <span className="context-val">{printGoal(selected.goal, puzzle)}</span>
+                  </div>
+                ) : (
+                  <div className="context-row none">
+                    <span className="context-label">goal</span>
+                    <span className="context-val">none — this step stands on its own</span>
+                  </div>
+                )}
+                {(selected.assumed ?? []).map((pred, depth) => (
+                  <div className="context-row assumed" key={`${depth}-${pred.eid}`}>
+                    <span className="context-label">assumed {depth + 1}</span>
+                    <span className="context-val">{printGoal(pred, puzzle)}</span>
+                  </div>
+                ))}
+                {(selected.assumed?.length ?? 0) === 0 && (
+                  <div className="context-row none">
+                    <span className="context-label">assumed</span>
+                    <span className="context-val">nothing — this is the real board</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -359,6 +454,7 @@ function App() {
             if (event.dataTransfer.types.includes('application/x-starbattle-hypothesis')) {
               event.preventDefault();
               event.dataTransfer.dropEffect = 'copy';
+              autoScrollOnDrag(event);
             }
           }}
           onDrop={event => {
@@ -367,6 +463,7 @@ function App() {
             event.preventDefault();
             workspaceRef.current?.dropHypothesis(factId, event.clientX, event.clientY);
             setHoverFact(null);
+            setDragging(false);
           }}
         >
           <BlocklyProof
