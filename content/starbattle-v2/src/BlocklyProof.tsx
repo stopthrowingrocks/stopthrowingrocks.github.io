@@ -26,7 +26,7 @@ const START_SCALE = 0.9;
 const PROOF_UPDATE_DELAY_MS = 40;
 const AUTOSAVE_DELAY_MS = 300;
 /** Blocks that, while selected, turn board clicks into cell picks for themselves. */
-const CELL_PICKING_TYPES = new Set(['sb_clique', 'sb_at_least_zero', 'sb_at_most', 'sb_bound', 'sb_count', 'sb_is_star', 'sb_is_elim']);
+const CELL_PICKING_TYPES = new Set(['sb_clique', 'sb_at_least_zero', 'sb_at_most', 'sb_bound', 'sb_count', 'sb_is_cell', 'sb_is_star', 'sb_is_elim']);
 /** Changes that can fill or empty a part socket. */
 const PART_EVENT_TYPES = new Set<string>([
   Blockly.Events.BLOCK_MOVE,
@@ -678,6 +678,25 @@ function registerBlocks() {
     this.appendValueInput('A').setCheck('Boolean').appendField('NOT'); this.setOutput(true, 'Boolean'); this.setColour(210);
     this.setTooltip('Logical negation; use by contradiction to close a NOT goal');
   } };
+  /*
+   * One block for both cell predicates, with the ★/✕ as a dropdown.
+   *
+   * They used to be two block types with the symbol baked into a label, so flipping a
+   * predicate meant deleting the block and dragging the other one in, then re-picking the
+   * cell. A block's type cannot change in Blockly, so the symbol has to be a field for this
+   * to be editable at all. `sb_is_star` and `sb_is_elim` stay registered below, because saved
+   * workspaces hold them; they are converted on load.
+   */
+  Blockly.Blocks.sb_is_cell = { init() {
+    this.appendDummyInput()
+      .appendField(new Blockly.FieldDropdown(cellOptions), 'CELL')
+      .appendField('is')
+      .appendField(new Blockly.FieldDropdown([['★', 'is_star'], ['✕', 'is_elim']]), 'KIND');
+    this.setOutput(true, 'Boolean'); this.setColour(210);
+    this.setTooltip('A cell holds a star (★) or is eliminated (✕). Select this block, then click '
+      + 'a board cell; use the second dropdown to switch between them.');
+  } };
+  // Retained so an older saved workspace still loads; `migrateCellPredicates` upgrades them.
   Blockly.Blocks.sb_is_star = { init() {
     this.appendDummyInput()
       .appendField(new Blockly.FieldDropdown(cellOptions), 'CELL')
@@ -692,6 +711,51 @@ function registerBlocks() {
     this.setOutput(true, 'Boolean'); this.setColour(210);
     this.setTooltip('The selected cell is eliminated. Select this block, then click a board cell.');
   } };
+}
+
+/**
+ * Rewrite the old one-per-predicate blocks as the single block with a ★/✕ dropdown.
+ *
+ * A block's type is fixed, so each one is replaced: build the new block, move it into the
+ * input the old one filled, and dispose the old. Done on load, so a saved proof gains the
+ * dropdown rather than keeping a block that cannot be flipped.
+ */
+function migrateCellPredicates(workspace: Blockly.WorkspaceSvg): void {
+  let upgraded = 0;
+  let failed = 0;
+  for (const kind of ['is_star', 'is_elim'] as const) {
+    for (const old of workspace.getBlocksByType(`sb_${kind}`, false)) {
+      /*
+       * Per block, because this runs while a proof is loading. A throw here would abort the
+       * load and look like lost work; leaving one block unconverted only costs it the dropdown,
+       * and the reader still understands the old type.
+       */
+      try {
+        const fresh = newBuiltBlock(workspace, 'sb_is_cell');
+        fresh.setFieldValue(old.getFieldValue('CELL'), 'CELL');
+        fresh.setFieldValue(kind, 'KIND');
+        const socket = old.outputConnection?.targetConnection ?? null;
+        old.outputConnection?.disconnect();
+        if (socket && fresh.outputConnection) socket.connect(fresh.outputConnection);
+        else if (old instanceof Blockly.BlockSvg && fresh instanceof Blockly.BlockSvg) {
+          fresh.moveTo(old.getRelativeToSurfaceXY());
+        }
+        old.dispose(false);
+        upgraded++;
+      } catch (error) {
+        failed++;
+        console.warn('Left a cell predicate on the old block type:', error);
+      }
+    }
+  }
+  if (failed > 0) {
+    console.warn(`${failed} cell predicate${failed === 1 ? '' : 's'} kept the old block type; `
+      + 'they still read correctly but cannot be flipped in place.');
+  }
+  if (upgraded > 0) {
+    console.info(`Gave ${upgraded} cell predicate${upgraded === 1 ? '' : 's'} a ★/✕ dropdown, `
+      + 'so the predicate can be flipped without replacing the block.');
+  }
 }
 
 function makeToolbox(facts: Fact[]): Blockly.utils.toolbox.ToolboxDefinition {
@@ -728,8 +792,7 @@ function makeToolbox(facts: Fact[]): Blockly.utils.toolbox.ToolboxDefinition {
     { kind: 'block', type: 'sb_and' },
     { kind: 'block', type: 'sb_or' },
     { kind: 'block', type: 'sb_not' },
-    { kind: 'block', type: 'sb_is_star' },
-    { kind: 'block', type: 'sb_is_elim' },
+    { kind: 'block', type: 'sb_is_cell' },
     { kind: 'block', type: 'sb_count' },
     { kind: 'block', type: 'math_number' },
     { kind: 'block', type: 'math_arithmetic', fields: { OP: 'ADD' } },
@@ -781,6 +844,10 @@ function boolExpr(block: Blockly.Block | null, puzzle: Puzzle): BoolExpr | null 
   if (block.type === 'sb_compare') return { eid: block.id, kind: 'cmp', op: block.getFieldValue('OP'), a: numExpr(block.getInputTargetBlock('A'), puzzle), b: numExpr(block.getInputTargetBlock('B'), puzzle) };
   if (block.type === 'sb_and' || block.type === 'sb_or') return { eid: block.id, kind: block.type === 'sb_and' ? 'and' : 'or', a: boolExpr(block.getInputTargetBlock('A'), puzzle), b: boolExpr(block.getInputTargetBlock('B'), puzzle) };
   if (block.type === 'sb_not') return { eid: block.id, kind: 'not', a: boolExpr(block.getInputTargetBlock('A'), puzzle) };
+  if (block.type === 'sb_is_cell') {
+    const kind = block.getFieldValue('KIND') === 'is_star' ? 'is_star' : 'is_elim';
+    return { eid: block.id, kind, cell: Number(block.getFieldValue('CELL')) };
+  }
   if (block.type === 'sb_is_star' || block.type === 'sb_is_elim') {
     return { eid: block.id, kind: block.type === 'sb_is_star' ? 'is_star' : 'is_elim', cell: Number(block.getFieldValue('CELL')) };
   }
@@ -936,7 +1003,7 @@ function enclosingStep(block: Blockly.Block | null): Blockly.Block | null {
   let step = block;
   while (step && (
     !step.type.startsWith('sb_') ||
-    ['sb_fact', 'sb_fact_difference', 'sb_fact_sum', 'sb_combine', 'sb_clique', 'sb_at_least_zero', 'sb_at_most', 'sb_bound', 'sb_count', 'sb_compare', 'sb_and', 'sb_or', 'sb_not', 'sb_is_star', 'sb_is_elim'].includes(step.type)
+    ['sb_fact', 'sb_fact_difference', 'sb_fact_sum', 'sb_combine', 'sb_clique', 'sb_at_least_zero', 'sb_at_most', 'sb_bound', 'sb_count', 'sb_compare', 'sb_and', 'sb_or', 'sb_not', 'sb_is_cell', 'sb_is_star', 'sb_is_elim'].includes(step.type)
   )) step = step.getParent();
   return step;
 }
@@ -1086,7 +1153,8 @@ function buildBool(workspace: Blockly.WorkspaceSvg, expr: BoolExpr | null, puzzl
   switch (expr.kind) {
     case 'is_star':
     case 'is_elim': {
-      const block = newBuiltBlock(workspace, expr.kind === 'is_star' ? 'sb_is_star' : 'sb_is_elim');
+      const block = newBuiltBlock(workspace, 'sb_is_cell');
+      block.setFieldValue(expr.kind, 'KIND');
       block.setFieldValue(String(expr.cell), 'CELL');
       return block;
     }
@@ -1317,6 +1385,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
       if (!workspace.getTopBlocks(false).some(block => block.type === 'sb_start')) addStartBlock(workspace);
       migrateLegacyReferences(workspace, puzzle);
       if (saved.lineIds !== 'named') migrateLineIds(workspace);
+      migrateCellPredicates(workspace);
     } finally {
       Blockly.Events.enable();
     }
@@ -1360,7 +1429,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
     const picking = !!selected && CELL_PICKING_TYPES.has(selected.type);
     const cells = selected && (selected.type === 'sb_clique' || selected.type === 'sb_at_least_zero' || selected.type === 'sb_at_most' || selected.type === 'sb_bound' || selected.type === 'sb_count')
       ? cellsFromText(selected.getFieldValue('CELLS'), puzzle)
-      : selected && (selected.type === 'sb_is_star' || selected.type === 'sb_is_elim')
+      : selected && (selected.type === 'sb_is_cell' || selected.type === 'sb_is_star' || selected.type === 'sb_is_elim')
         ? [Number(selected.getFieldValue('CELL'))]
         : [];
     const hypothesis = factExpression(selected, puzzle);
@@ -1468,7 +1537,7 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
     editSelectedCell(cell: number) {
       const block = selectedRef.current;
       if (!block) return;
-      if (block.type === 'sb_is_star' || block.type === 'sb_is_elim') {
+      if (block.type === 'sb_is_cell' || block.type === 'sb_is_star' || block.type === 'sb_is_elim') {
         block.setFieldValue(String(cell), 'CELL');
       } else if (block.type === 'sb_clique' || block.type === 'sb_at_least_zero' || block.type === 'sb_at_most' || block.type === 'sb_bound' || block.type === 'sb_count') {
         const cells = cellsFromText(block.getFieldValue('CELLS'), puzzle);
