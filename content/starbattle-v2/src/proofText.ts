@@ -96,7 +96,15 @@ or "; ERROR: ...") is itself valid input again.`;
 type Sx =
   | { t: 'atom'; v: string; line: number }
   | { t: 'str'; v: string; line: number }
-  | { t: 'list'; v: Sx[]; line: number; note?: string };
+  /**
+   * `note` is this statement's own outcome, printed as a trailing comment.
+   *
+   * `bodyFrom` is where the head arguments stop and body statements begin, for the forms
+   * that hold their body as bare children rather than in a `(body ...)` section. The printer
+   * records it because only the printer knows: from the s-expression alone a claim's body is
+   * indistinguishable from more arguments, which is why claims used to print flat.
+   */
+  | { t: 'list'; v: Sx[]; line: number; note?: string; bodyFrom?: number };
 
 class ReadError extends Error {}
 
@@ -245,7 +253,7 @@ function printBlockCore(b: Block, puzzle: Puzzle, results?: Results): Sx {
     case 'sorry': return tagged('sorry', []);
     case 'argument': {
       const body = b.body.map(child => printBlock(child, puzzle, results));
-      return tagged('argument', body);
+      return { t: 'list', v: [atom('argument'), ...body], line: 0, bodyFrom: 1 };
     }
     case 'suppose': {
       const body = b.body.map(child => printBlock(child, puzzle, results));
@@ -253,13 +261,14 @@ function printBlockCore(b: Block, puzzle: Puzzle, results?: Results): Sx {
         t: 'list',
         v: [atom('suppose'), atom(printAtomOrString(b.name)), printBool(b.pred, puzzle), ...body],
         line: 0,
+        bodyFrom: 3,
       };
     }
     // A name, not an expression: there is no contrapositive wrapper to justify a slot.
     case 'use': return tagged('use', [atom(printAtomOrString(b.name))]);
     case 'claim': {
       const body = b.body.map(child => printBlock(child, puzzle, results));
-      return { t: 'list', v: [atom('claim'), printBool(b.pred, puzzle), ...body], line: 0 };
+      return { t: 'list', v: [atom('claim'), printBool(b.pred, puzzle), ...body], line: 0, bodyFrom: 2 };
     }
     case 'by_contradiction': {
       const body = b.body.map(child => printBlock(child, puzzle, results));
@@ -296,36 +305,58 @@ function printBlock(b: Block, puzzle: Puzzle, results?: Results): Sx {
   return note ? { ...sx, note } : sx;
 }
 
-/** Pretty-print an s-expression tree: statement bodies one per line, indented; everything else inline. */
-function layout(sx: Sx, indent: number, statementBody: boolean): string {
+/** The tags that wrap a run of statements: `(body ...)`, `(left ...)` and friends. */
+const SECTION_TAGS = ['body', 'via', 'left', 'right', 'positive', 'negative'];
+
+/** The section tag of `sx`, or null if it is not a section. */
+function sectionTag(sx: Sx): string | null {
+  if (sx.t !== 'list') return null;
+  const head = sx.v[0];
+  return head?.t === 'atom' && SECTION_TAGS.includes(head.v) ? head.v : null;
+}
+
+/**
+ * Pretty-print an s-expression tree: a statement that holds a body puts each body statement
+ * on its own line, indented; everything else stays inline.
+ *
+ * Whether a form holds a body is read off the tree -- a `bodyFrom` the printer recorded, or
+ * a tagged section -- rather than matched against a list of form names. The list was a
+ * fourth register of which blocks have children, beside `childContainers`, `mapBodies` and
+ * the parser, and it had already fallen behind: `suppose` and `or-elim` were missing from it,
+ * so they printed flat.
+ */
+function layout(sx: Sx, indent: number): string {
   const pad = '  '.repeat(indent);
   if (sx.t !== 'list') return pad + sxToText(sx);
-  const isSection = sx.v[0]?.t === 'atom' &&
-    ['body', 'via', 'left', 'right', 'positive', 'negative'].includes(sx.v[0].v);
-  const isStmtForm = sx.v[0]?.t === 'atom' &&
-    ['argument', 'claim', 'by-contradiction', 'constructor', 'by-cases'].includes(sx.v[0].v);
-  if (statementBody || isSection || isStmtForm) {
-    const head = sx.v.filter(item => !(item.t === 'list' && item.v[0]?.t === 'atom' &&
-      ['body', 'via', 'left', 'right', 'positive', 'negative'].includes((item.v[0] as { v: string }).v)));
-    const sections = sx.v.filter(item => item.t === 'list' && item.v[0]?.t === 'atom' &&
-      ['body', 'via', 'left', 'right', 'positive', 'negative'].includes((item.v[0] as { v: string }).v));
-    const suffix = sx.note ? `  ; ${sx.note}` : '';
-    const headText = `${pad}(${head.map(sxToText).join(' ')}`;
-    if (sections.length === 0) return `${headText})${suffix}`;
-    const lines = [headText];
-    for (const section of sections) {
-      if (section.t !== 'list') continue;
-      const tag = (section.v[0] as { v: string }).v;
-      const rest = section.v.slice(1);
-      if (tag === 'via') { lines.push(`${pad}  (via ${rest.map(sxToText).join(' ')})`); continue; }
-      lines.push(`${pad}  (${tag}`);
-      for (const stmt of rest) lines.push(layout(stmt, indent + 2, true));
-      lines.push(`${pad}  )`);
-    }
-    lines.push(`${pad})${suffix}`);
-    return lines.join('\n');
+
+  const sections = sx.v.filter(item => sectionTag(item));
+  const head = sx.bodyFrom === undefined
+    ? sx.v.filter(item => !sectionTag(item))
+    : sx.v.slice(0, sx.bodyFrom);
+  const body = sx.bodyFrom === undefined ? [] : sx.v.slice(sx.bodyFrom);
+
+  // A note is one line by construction; keep it so, since it ends up inside a `;` comment.
+  const suffix = sx.note ? `  ; ${sx.note.replace(/\s*\n\s*/g, ' ')}` : '';
+  const headText = `${pad}(${head.map(sxToText).join(' ')}`;
+  if (sections.length === 0 && body.length === 0) return `${headText})${suffix}`;
+
+  // The note goes on the opening line: on the closing paren of a 180-line argument it is
+  // nowhere near the statement it describes. `;` runs to end of line, so the body below is
+  // still read, and the annotated form remains valid input to `parseProof`.
+  const lines = [`${headText}${suffix}`];
+  for (const stmt of body) lines.push(layout(stmt, indent + 1));
+  for (const section of sections) {
+    if (section.t !== 'list') continue;
+    const tag = sectionTag(section)!;
+    const rest = section.v.slice(1);
+    // `via` names a fact rather than holding statements, so it reads better on one line.
+    if (tag === 'via') { lines.push(`${pad}  (via ${rest.map(sxToText).join(' ')})`); continue; }
+    lines.push(`${pad}  (${tag}`);
+    for (const stmt of rest) lines.push(layout(stmt, indent + 2));
+    lines.push(`${pad}  )`);
   }
-  return pad + sxToText(sx);
+  lines.push(`${pad})`);
+  return lines.join('\n');
 }
 
 /**
@@ -340,8 +371,13 @@ export function printHypothesis(expr: HypExpr | null, puzzle: Puzzle): string {
   return sxToText(printHyp(expr, puzzle));
 }
 
+/** One goal or assumption as text, for showing what a step is working under. */
+export function printGoal(pred: BoolExpr | null, puzzle: Puzzle): string {
+  return sxToText(printBool(pred, puzzle));
+}
+
 export function printProof(blocks: Block[], puzzle: Puzzle, results?: Results): string {
-  return blocks.map(b => layout(printBlock(b, puzzle, results), 0, true)).join('\n\n');
+  return blocks.map(b => layout(printBlock(b, puzzle, results), 0)).join('\n\n');
 }
 
 // ── Parsing text -> Block[] ────────────────────────────────────────────────────

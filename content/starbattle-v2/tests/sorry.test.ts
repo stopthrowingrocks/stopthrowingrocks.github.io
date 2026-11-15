@@ -74,8 +74,12 @@ test('the report says a solved board rests on an admission', () => {
 
 test('sorry round-trips through the text format', () => {
   const text = '(claim (is-elim A1) (sorry))';
-  const blocks = parseProof(text, PUZZLE);
-  assert.equal(printProof(blocks, PUZZLE).trim(), text);
+  // The printer lays a claim's body out on its own line, so the printed form is not the
+  // input character for character. What has to hold is that it says the same thing and is
+  // stable: reparsing it gives the same text back.
+  const printed = printProof(parseProof(text, PUZZLE), PUZZLE).trim();
+  assert.equal(printed, '(claim (is-elim A1)\n  (sorry)\n)');
+  assert.equal(printProof(parseProof(printed, PUZZLE), PUZZLE).trim(), printed);
 });
 
 test('sorry costs one, like any other statement', () => {
