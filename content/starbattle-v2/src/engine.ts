@@ -526,21 +526,21 @@ function applySplit(
     label: `${labelPrefix}-${index + 1}`,
     cells: [...piece.cells],
     target: piece.target,
-    /*
-     * A part written as a bare reference is already a hypothesis with a name of its own, and
-     * the fact a split would emit for it would say exactly the same thing. Naming it twice
-     * only crowds the pool, so the existing hypothesis stands in and the part is numbered but
-     * not emitted. Numbering stays positional, so the other parts keep the names they had.
-     */
-    reuse: parts[index].kind === 'ref' ? parts[index].factId : null,
   }));
   for (const result of results) {
-    if (result.reuse) continue;
     if (s.facts.some(fact => fact.id === result.id)) return fail(`${result.id} is already defined`);
   }
   dropTemporaries();
+  /*
+   * Every part gets its own fact, including one written as a bare reference to a hypothesis
+   * that already says the same thing.
+   *
+   * Suppressing those looked like tidying -- one hypothesis should not have two names -- but
+   * splitting on a known hypothesis and then naming the part by position is how these proofs
+   * are actually written, so it silently broke proofs that used it. Removing the duplicate
+   * properly means making the part's name an alias for the existing fact, not dropping it.
+   */
   for (const result of results) {
-    if (result.reuse) continue;
     s.facts.push({
       id: result.id, kind: 'derived', index: 0, label: result.label,
       op: '=', cells: result.cells, target: result.target, impossible: false,
@@ -548,9 +548,7 @@ function applySplit(
   }
   normalize(s);
   return {
-    note: results.map(result => (result.reuse
-      ? `${result.label}: already known as ${result.reuse}`
-      : `${result.label}: ★{${listed(result.cells)}} = ${result.target}`)).join('; '),
+    note: results.map(result => `${result.label}: ★{${listed(result.cells)}} = ${result.target}`).join('; '),
   };
 }
 
