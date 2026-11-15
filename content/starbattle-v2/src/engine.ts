@@ -1,4 +1,4 @@
-import type { Block, BlockResult, BlockStatus, BoolExpr, CmpExpr, CmpOp, Fact, FactOp, HypExpr, NumExpr, PState, Puzzle } from './types';
+import type { Block, BlockResult, BlockStatus, BoolExpr, CmpExpr, CmpOp, Fact, FactOp, HypExpr, NumExpr, PState, Puzzle, Supposition } from './types';
 import { factName, lineId, lineIndices, lineMembers, neighbors, posLabel } from './puzzles';
 
 /** Fresh state with every row/column/region count fact pre-expanded. */
@@ -27,14 +27,22 @@ export function initState(puzzle: Puzzle): PState {
   };
 }
 
+/** Deep enough that nothing a supposition records is shared with the state it came from. */
+function cloneSupposition(sup: Supposition): Supposition {
+  return {
+    ...sup,
+    cells: [...sup.cells],
+    facts: sup.facts.map(f => ({ ...f, cells: [...f.cells] })),
+    suppositions: sup.suppositions.map(cloneSupposition),
+  };
+}
+
 function cloneState(s: PState): PState {
   return {
     cells: [...s.cells],
     facts: s.facts.map(f => ({ ...f, cells: [...f.cells] })),
     propositions: [...s.propositions],
-    suppositions: s.suppositions.map(sup => ({
-      ...sup, cells: [...sup.cells], facts: sup.facts.map(f => ({ ...f, cells: [...f.cells] })),
-    })),
+    suppositions: s.suppositions.map(cloneSupposition),
     contradiction: s.contradiction,
     admitted: s.admitted,
   };
@@ -1072,12 +1080,18 @@ function evalSeq(
         if (sequenceErrored(b.body, results)) {
           error = 'the supposition contains an invalid step';
         } else {
+          // Only the ones the body itself made: the body inherits the outer records, and
+          // re-recording those under this name would duplicate them on every discharge.
+          const outer = new Set(prev.suppositions.map(sup => sup.name));
           next.suppositions = [...prev.suppositions, {
             name,
             pred: b.pred,
             cells: [...end.cells],
             facts: end.facts.map(f => ({ ...f, cells: [...f.cells] })),
             contradiction: end.contradiction,
+            suppositions: end.suppositions
+              .filter(sup => !outer.has(sup.name))
+              .map(cloneSupposition),
           }];
           const settled = end.cells.filter((c, i) => c !== null && prev.cells[i] === null).length;
           note = end.contradiction
@@ -1144,13 +1158,25 @@ function evalSeq(
           });
         }
         if (added) normalize(next);
+        /*
+         * Suppositions the body made are conditional on this one's predicate, and that
+         * predicate has just been established -- so they hold here too, and discharging this
+         * record hands them over. An inner supposition was otherwise unreachable: it died with
+         * the body that held it, even once its condition was met.
+         */
+        const taken = new Set(next.suppositions.map(sup => sup.name));
+        const exposed = sup.suppositions.filter(inner => !taken.has(inner.name));
+        if (exposed.length > 0) {
+          next.suppositions = [...next.suppositions, ...exposed.map(cloneSupposition)];
+        }
         const moved = next.cells.filter((c, i) => c !== null && prev.cells[i] === null).length;
-        if (!added && !moved && !notes.length) {
+        if (!added && !moved && !notes.length && exposed.length === 0) {
           error = `you already know everything ${name} derived`;
           break;
         }
         notes.push(`${name} gives ${moved} cell${moved === 1 ? '' : 's'}` +
-          (added ? ` and ${added} hypothes${added === 1 ? 'is' : 'es'}` : ''));
+          (added ? ` and ${added} hypothes${added === 1 ? 'is' : 'es'}` : '') +
+          (exposed.length ? `, and exposes ${exposed.map(s => s.name).join(', ')}` : ''));
         note = notes.join('; ');
         break;
       }

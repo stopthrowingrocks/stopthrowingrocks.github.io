@@ -81,6 +81,14 @@ export interface Supposition {
   facts: Fact[];
   /** The body derived a contradiction, so `pred` is in fact false. */
   contradiction: boolean;
+  /**
+   * Suppositions made inside the body.
+   *
+   * Each is conditional on this one's `pred`, so discharging this supposition makes them
+   * available too. Without them, nesting a supposition inside another put it out of reach:
+   * the inner record died with the body that held it, even once its condition was met.
+   */
+  suppositions: Supposition[];
 }
 
 export interface PState {

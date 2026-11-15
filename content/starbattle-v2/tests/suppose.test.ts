@@ -163,3 +163,56 @@ test('focusing a supposition shows the context inside it', () => {
   assert.equal(inside.state.cells[0], null, 'nothing escapes to the outer board');
   assert.equal(inside.prev.cells[0], null);
 });
+
+/*
+ * Nesting: a supposition made inside another is conditional on the outer one, so discharging
+ * the outer hands it over. Without that it was unreachable -- the inner record died with the
+ * body that held it, even once its condition had been met, so nesting a supposition was a way
+ * to lose it.
+ */
+test('using a supposition exposes the suppositions made inside it', () => {
+  const { blocks, results, final } = run(`
+    (suppose S (is-star A1)
+      (elims row1)
+      (suppose T (is-star B5) (elims row5)))
+    (claim (is-star A1) (sorry))
+    (use S)
+  `);
+  assert.ok(!statuses(results).some(s => s.startsWith('error')), statuses(results).join(' / '));
+  // Before the discharge only S is in scope; T lives inside its body.
+  assert.equal(final.suppositions.filter(s => s.name === 'T').length, 1,
+    `T should be available after using S: ${final.suppositions.map(s => s.name).join(', ')}`);
+  const used = results.get(blocks[blocks.length - 1].id)!;
+  assert.match(used.note ?? '', /exposes T/, `the use should say what it handed over: ${used.note}`);
+});
+
+test('a supposition records only the suppositions its own body made', () => {
+  // `is-star A1` is satisfiable on this board; a predicate that contradicts at once would
+  // skip the body as unreachable and record nothing inside it.
+  const { final } = run(`
+    (suppose P (is-elim A1))
+    (suppose S (is-star A1) (suppose T (is-star B5)))
+  `);
+  const S = final.suppositions.find(s => s.name === 'S')!;
+  // P was in scope when S opened, so S inherits it; re-recording it would duplicate P on
+  // every discharge of S.
+  assert.deepEqual(S.suppositions.map(s => s.name), ['T']);
+  assert.deepEqual(final.suppositions.find(s => s.name === 'P')!.suppositions, []);
+});
+
+test('exposing does not clobber a supposition already in scope', () => {
+  const { results, final } = run(`
+    (suppose S (is-star A1)
+      (elims row1)
+      (suppose T (is-star B5) (elims row5)))
+    (suppose T (is-star C3))
+    (claim (is-star A1) (sorry))
+    (use S)
+  `);
+  assert.ok(!statuses(results).some(s => s.startsWith('error')), statuses(results).join(' / '));
+  const named = final.suppositions.filter(s => s.name === 'T');
+  assert.equal(named.length, 1, 'one T, not two');
+  // The outer T is the one that was already established here; the inner one does not replace it.
+  assert.equal(named[0].pred.kind, 'is_star');
+  assert.equal((named[0].pred as { cell: number }).cell, 2 * P.size + 2, 'C3, the outer T');
+});
