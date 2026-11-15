@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Block, Fact, HypExpr, PState, Puzzle } from './types';
 import { parseLevels, groupPuzzles, factName, posLabel, REGION_COLORS } from './puzzles';
-import { childContainers, containsSorry, evaluate, hypothesisForm, isSolved, opSymbol } from './engine';
-import { printGoal } from './proofText';
+import { childContainers, containsSorry, evaluate, hypothesisForm, isSolved, opSymbol, predicateText } from './engine';
 import { Board, type Coverage } from './Board';
 import { BlocklyProof, type ProofWorkspaceHandle } from './BlocklyProof';
 import levelsData from './levels.json';
@@ -420,29 +419,31 @@ function App() {
             {selected && (
               <div className="context">
                 <div className="context-title">Working under</div>
-                {selected.goal ? (
-                  <div className="context-row">
-                    <span className="context-label">goal</span>
-                    <span className="context-val">{printGoal(selected.goal, puzzle)}</span>
-                  </div>
-                ) : (
-                  <div className="context-row none">
-                    <span className="context-label">goal</span>
-                    <span className="context-val">none — this step stands on its own</span>
-                  </div>
-                )}
-                {(selected.assumed ?? []).map((pred, depth) => (
-                  <div className="context-row assumed" key={`${depth}-${pred.eid}`}>
-                    <span className="context-label">assumed {depth + 1}</span>
-                    <span className="context-val">{printGoal(pred, puzzle)}</span>
-                  </div>
-                ))}
-                {(selected.assumed?.length ?? 0) === 0 && (
+                {/*
+                  Assumptions first: they are the ground the goal is being proved on, and
+                  reading the goal before them says what is being shown without saying where.
+                */}
+                {(selected.assumed?.length ?? 0) === 0 ? (
                   <div className="context-row none">
                     <span className="context-label">assumed</span>
-                    <span className="context-val">nothing — this is the real board</span>
+                    <span className="context-val">none</span>
                   </div>
+                ) : (
+                  (selected.assumed ?? []).map((pred, depth, all) => (
+                    <div className="context-row assumed" key={`${depth}-${pred.eid}`}>
+                      <span className="context-label">
+                        assumed{all.length > 1 ? ` ${depth + 1}` : ''}
+                      </span>
+                      <span className="context-val">{predicateText(pred, puzzle)}</span>
+                    </div>
+                  ))
                 )}
+                <div className={`context-row${selected.goal ? '' : ' none'}`}>
+                  <span className="context-label">goal</span>
+                  <span className="context-val">
+                    {selected.goal ? predicateText(selected.goal, puzzle) : 'none'}
+                  </span>
+                </div>
               </div>
             )}
           </div>

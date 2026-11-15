@@ -715,6 +715,86 @@ export function lowerPred(p: CmpExpr): { cells: number[]; op: FactOp; k: number 
 /** A comparison lowered to `★{cells} op k`. */
 export interface LoweredCmp { cells: number[]; op: FactOp; k: number }
 
+/** The literal a negation leaves behind: comparisons close under it. */
+const negateOp = (op: CmpOp): CmpOp =>
+  op === '=' ? '!=' : op === '!=' ? '=' : op === '<=' ? '>' : op === '>=' ? '<' : op === '<' ? '>=' : '<=';
+
+const cmpSymbol = (op: CmpOp): string => (op === '<' || op === '>' ? op : opSymbol(op));
+
+const MARK = { star: '★', elim: '✕' } as const;
+
+/**
+ * The mark a comparison pins a lone cell to, or null if it leaves it open.
+ *
+ * One cell holds nought or one star, so most comparisons against 0 or 1 decide it outright —
+ * which is what lets `★{A4} ≥ 1` be written as the `A4=★` it means. `lowerPred` has already
+ * turned `<` and `>` into `≤` and `≥` by this point.
+ */
+function pinnedMark(cells: number[], op: FactOp, k: number): 'star' | 'elim' | null {
+  if (cells.length !== 1) return null;
+  if (op === '=') return k === 0 ? 'elim' : k === 1 ? 'star' : null;
+  if (op === '!=') return k === 0 ? 'star' : k === 1 ? 'elim' : null;
+  if (op === '<=') return k === 0 ? 'elim' : null;
+  return k === 1 ? 'star' : null;
+}
+
+/** Whether this prints as an infix connective, so it needs brackets inside another. */
+function isConnective(e: BoolExpr | null): boolean {
+  if (!e) return false;
+  if (e.kind === 'not') return isConnective(e.a);
+  return e.kind === 'and' || e.kind === 'or';
+}
+
+const numText = (e: NumExpr | null, puzzle: Puzzle): string => {
+  if (!e) return '_';
+  if (e.kind === 'lit') return String(e.value);
+  if (e.kind === 'count') return `★{${e.cells.map(c => posLabel(c, puzzle.size)).join(' ')}}`;
+  return `(${numText(e.a, puzzle)} ${e.kind === 'add' ? '+' : '−'} ${numText(e.b, puzzle)})`;
+};
+
+/**
+ * A goal or assumption in the same notation as the hypotheses above it: `★{A1 B1} ≤ 1`,
+ * or `A4=★` where it is about one cell.
+ *
+ * Negation is pushed to the leaves rather than printed, because `¬(¬(★{A1 B1} ≠ 2))` tells a
+ * reader nothing that `★{A1 B1} = 2` does not. Comparisons close under negation, a cell's two
+ * marks are each other's negation, and `∧`/`∨` swap under De Morgan — so nothing survives
+ * that needs a `¬` at all. `neg` carries the pending negation down the tree.
+ */
+export function predicateText(pred: BoolExpr | null, puzzle: Puzzle, neg = false): string {
+  if (!pred) return '_';
+  switch (pred.kind) {
+    case 'not':
+      return predicateText(pred.a, puzzle, !neg);
+    case 'is_star':
+    case 'is_elim':
+      return `${posLabel(pred.cell, puzzle.size)}=${
+        (pred.kind === 'is_star') !== neg ? MARK.star : MARK.elim}`;
+    case 'and':
+    case 'or': {
+      const join = (pred.kind === 'and') !== neg ? ' /\\ ' : ' \\/ ';
+      return [pred.a, pred.b]
+        .map(side => (isConnective(side)
+          ? `(${predicateText(side, puzzle, neg)})`
+          : predicateText(side, puzzle, neg)))
+        .join(join);
+    }
+    case 'cmp': {
+      const op = neg ? negateOp(pred.op) : pred.op;
+      const lowered = lowerPred({ ...pred, op });
+      // Unlowerable only when the counts do not cancel to one side; say what it compares
+      // rather than reporting why, since the panel is not where that gets fixed.
+      if ('error' in lowered) {
+        return `${numText(pred.a, puzzle)} ${cmpSymbol(op)} ${numText(pred.b, puzzle)}`;
+      }
+      const mark = pinnedMark(lowered.cells, lowered.op, lowered.k);
+      return mark
+        ? `${posLabel(lowered.cells[0], puzzle.size)}=${MARK[mark]}`
+        : `★{${lowered.cells.map(c => posLabel(c, puzzle.size)).join(' ')}} ${opSymbol(lowered.op)} ${lowered.k}`;
+    }
+  }
+}
+
 /**
  * Disjunctive normal form of a boolean predicate (or of its negation, when
  * `neg`): a list of terms, each term a conjunction of lowered comparisons.

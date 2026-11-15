@@ -371,11 +371,6 @@ export function printHypothesis(expr: HypExpr | null, puzzle: Puzzle): string {
   return sxToText(printHyp(expr, puzzle));
 }
 
-/** One goal or assumption as text, for showing what a step is working under. */
-export function printGoal(pred: BoolExpr | null, puzzle: Puzzle): string {
-  return sxToText(printBool(pred, puzzle));
-}
-
 export function printProof(blocks: Block[], puzzle: Puzzle, results?: Results): string {
   return blocks.map(b => layout(printBlock(b, puzzle, results), 0)).join('\n\n');
 }

@@ -8,11 +8,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluate } from '../src/engine.ts';
-import { parseProof, printGoal, printProof } from '../src/proofText.ts';
+import { evaluate, predicateText } from '../src/engine.ts';
+import { parseProof, printProof } from '../src/proofText.ts';
 import { parseLevels } from '../src/puzzles.ts';
 import levels from '../src/levels.json' with { type: 'json' };
-import type { Puzzle, RawLevel } from '../src/types.ts';
+import type { BoolExpr, CmpOp, NumExpr, Puzzle, RawLevel } from '../src/types.ts';
 
 const puzzles = parseLevels(levels as RawLevel[]);
 const P: Puzzle = puzzles[0];
@@ -193,9 +193,9 @@ test('each step records the goal and the assumptions over it', () => {
     && results.get(id)!.assumed?.length)!;
   assert.ok(inner, 'some step should be under an assumption');
   const ctx = inner[1];
-  assert.equal(printGoal(ctx.goal!, P), '(is-elim A1)', 'the claim goal is carried into the body');
+  assert.equal(predicateText(ctx.goal!, P), 'A1=✕', 'the claim goal is carried into the body');
   assert.equal(ctx.assumed!.length, 1);
-  assert.equal(printGoal(ctx.assumed![0], P), '(is-star A1)',
+  assert.equal(predicateText(ctx.assumed![0], P), 'A1=★',
     'a by-contradiction assumes the negation, and a negated elim is a star');
 });
 
@@ -208,6 +208,95 @@ test('assumptions stack through nested arguments', () => {
   const deepest = [...results.values()]
     .reduce((best, r) => ((r.assumed?.length ?? 0) > (best.assumed?.length ?? 0) ? r : best));
   assert.equal(deepest.assumed!.length, 2, 'two by-contradictions deep means two assumptions');
-  assert.deepEqual(deepest.assumed!.map(a => printGoal(a, P)), ['(is-star A1)', '(is-star B5)']);
-  assert.equal(printGoal(deepest.goal!, P), '(is-elim B5)', 'the nearest claim is what is being proved');
+  assert.deepEqual(deepest.assumed!.map(a => predicateText(a, P)), ['A1=★', 'B5=★']);
+  assert.equal(predicateText(deepest.goal!, P), 'B5=✕', 'the nearest claim is what is being proved');
+});
+
+/*
+ * How a goal or an assumption reads in the panel.
+ *
+ * The same notation as the hypotheses it sits under, because a step is read against them:
+ * `★{A1 B1} ≤ 1` for a count, `A4=★` for one cell. Negation is never printed -- it is pushed
+ * to the leaves, where comparisons close under it, a cell's two marks are each other's
+ * negation, and the connectives swap. `¬(★{A1 B1} ≠ 2)` tells a reader nothing that
+ * `★{A1 B1} = 2` does not.
+ */
+const count = (...cells: number[]): NumExpr => ({ eid: 'c', kind: 'count', cells });
+const lit = (value: number): NumExpr => ({ eid: 'l', kind: 'lit', value });
+const cmp = (op: CmpOp, a: NumExpr, b: NumExpr): BoolExpr => ({ eid: 'p', kind: 'cmp', op, a, b });
+const not = (a: BoolExpr): BoolExpr => ({ eid: 'n', kind: 'not', a });
+const star = (cell: number): BoolExpr => ({ eid: 's', kind: 'is_star', cell });
+const elim = (cell: number): BoolExpr => ({ eid: 'e', kind: 'is_elim', cell });
+const and = (a: BoolExpr, b: BoolExpr): BoolExpr => ({ eid: 'a', kind: 'and', a, b });
+const or = (a: BoolExpr, b: BoolExpr): BoolExpr => ({ eid: 'o', kind: 'or', a, b });
+/** A1 B1 C1 along the top row; A4 is the lone cell used for the single-cell forms. */
+const [A1, B1, C1, A4] = [0, 1, 2, 15];
+
+test('a cell predicate prints as the mark it asserts', () => {
+  assert.equal(predicateText(star(A4), P), 'A4=★');
+  assert.equal(predicateText(elim(A4), P), 'A4=✕');
+});
+
+test('a negated cell predicate is the other mark, not a ¬', () => {
+  assert.equal(predicateText(not(star(A4)), P), 'A4=✕');
+  assert.equal(predicateText(not(elim(A4)), P), 'A4=★');
+  assert.equal(predicateText(not(not(star(A4))), P), 'A4=★', 'double negation cancels');
+});
+
+test('a comparison prints in hypothesis form', () => {
+  assert.equal(predicateText(cmp('<=', count(A1, B1, C1), lit(1)), P), '★{A1 B1 C1} ≤ 1');
+  assert.equal(predicateText(cmp('=', count(A1, B1), lit(2)), P), '★{A1 B1} = 2');
+});
+
+test('negating a comparison flips the operator', () => {
+  // The case that motivated this: a negated `≠` is an `=`, and printing both reads as noise.
+  assert.equal(predicateText(not(cmp('!=', count(A1, B1), lit(2))), P), '★{A1 B1} = 2');
+  assert.equal(predicateText(not(cmp('=', count(A1, B1), lit(2))), P), '★{A1 B1} ≠ 2');
+  // `¬(≤ 1)` is `> 1`, which `lowerPred` normalizes to the `≥ 2` the engine works in.
+  assert.equal(predicateText(not(cmp('<=', count(A1, B1, C1), lit(1))), P), '★{A1 B1 C1} ≥ 2');
+  assert.equal(predicateText(not(cmp('>=', count(A1, B1, C1), lit(2))), P), '★{A1 B1 C1} ≤ 1');
+});
+
+test('a comparison over one cell collapses to its mark', () => {
+  // A cell holds nought or one star, so these say nothing more than which.
+  assert.equal(predicateText(cmp('>=', count(A4), lit(1)), P), 'A4=★');
+  assert.equal(predicateText(cmp('<=', count(A4), lit(0)), P), 'A4=✕');
+  assert.equal(predicateText(cmp('=', count(A4), lit(1)), P), 'A4=★');
+  assert.equal(predicateText(cmp('!=', count(A4), lit(0)), P), 'A4=★');
+  // `≤ 1` over one cell is vacuous rather than decisive, so it stays a count.
+  assert.equal(predicateText(cmp('<=', count(A4), lit(1)), P), '★{A4} ≤ 1');
+});
+
+test('counts on both sides are moved to one side', () => {
+  // `★{A1} ≥ ★{B1}` is `★{A1} − ★{B1} ≥ 0`, which has a −1 coefficient and cannot lower;
+  // it falls back to naming what is compared rather than reporting why.
+  assert.equal(predicateText(cmp('>=', count(A1), count(B1)), P), '★{A1} ≥ ★{B1}');
+  // Shifting a literal across does lower.
+  assert.equal(
+    predicateText(cmp('=', { eid: 'd', kind: 'sub', a: count(A1, B1), b: lit(1) }, lit(1)), P),
+    '★{A1 B1} = 2');
+});
+
+test('and and or print infix, and swap under a negation', () => {
+  // String.raw throughout: as a plain string `/\` is an invalid escape JS silently drops.
+  assert.equal(predicateText(and(star(A1), elim(B1)), P), String.raw`A1=★ /\ B1=✕`);
+  assert.equal(predicateText(or(star(A1), elim(B1)), P), String.raw`A1=★ \/ B1=✕`);
+  // De Morgan: the negation reaches the leaves, so the connective flips with them.
+  assert.equal(predicateText(not(and(star(A1), elim(B1))), P), String.raw`A1=✕ \/ B1=★`);
+  assert.equal(predicateText(not(or(star(A1), elim(B1))), P), String.raw`A1=✕ /\ B1=★`);
+});
+
+test('a nested connective is bracketed', () => {
+  assert.equal(
+    predicateText(and(star(A1), or(elim(B1), star(C1))), P),
+    String.raw`A1=★ /\ (B1=✕ \/ C1=★)`);
+  // Still bracketed when the inner connective is reached through a negation.
+  assert.equal(
+    predicateText(and(star(A1), not(or(elim(B1), star(C1)))), P),
+    String.raw`A1=★ /\ (B1=★ /\ C1=✕)`);
+});
+
+test('an empty slot prints as the placeholder, not a crash', () => {
+  assert.equal(predicateText(null, P), '_');
+  assert.equal(predicateText(and(star(A1), null as never), P), String.raw`A1=★ /\ _`);
 });
