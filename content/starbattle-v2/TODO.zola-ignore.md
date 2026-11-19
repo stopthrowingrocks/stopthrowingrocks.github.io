@@ -36,3 +36,10 @@ Board multi-select (needed by 1, 3, 5) — a "pick cells" mode like the existing
 Multi-arm C-blocks (4, 5) — the workspace currently assumes one body per block; suppose bodies would generalize to a list of arms.
 How "claim" blocks are justified (3) — nested sub-proof vs. engine-verified entailment (#8 style) vs. both.
 Nothing in the current Block/Fact/engine design blocks any of these — the additions are new block variants and one new op value, not rearchitecting.
+
+
+2026/11/18: [X] Allow "(use supposition)" to create a contradictory board state and close a by contradiction (or probably any claim) without supplying a contradicting hypothesis. Also render that the board state is contradictory in the GUI.
+[X] Suppositions should not add duplicate hypotheses
+[X] Focusing a define hypothesis block (and similar) should show the hypothesis on the left in the same way that focusing a (-) block does.
+[X] claim (not (and (is-star M1) (= (count C4 D4) 0))) does not seem to be generating a hypothesis
+dragging a hypothesis term from the left of the screen to the top or the bottom of the block area causes it to laggily scroll -- Instead, it should not scroll. Also, it is still not implemented that I can scroll with the mouse wheel while dragging a block.
