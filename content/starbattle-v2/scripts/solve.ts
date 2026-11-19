@@ -13,9 +13,14 @@ import { parseLevels } from '../src/puzzles';
 import { describePuzzle, runProof, formatReport } from '../src/agentTool';
 import { PROOF_GRAMMAR } from '../src/proofText';
 import levelsData from '../src/levels.json';
-import type { Puzzle } from '../src/types';
+import type { Puzzle, RawLevel } from '../src/types';
 
-const puzzles: Puzzle[] = parseLevels(levelsData);
+// `--levels FILE` reads a board set from elsewhere, so a scratch board can be described and
+// proved against without being spliced into the shipped list.
+const levelsAt = process.argv.indexOf('--levels');
+const levelsFile = levelsAt === -1 ? undefined : process.argv[levelsAt + 1];
+const puzzles: Puzzle[] = parseLevels(
+  levelsFile ? (JSON.parse(readFileSync(levelsFile, 'utf8')) as RawLevel[]) : levelsData);
 
 function usage(): never {
   console.error(`Usage:
@@ -37,7 +42,8 @@ function requirePuzzle(indexArg: string | undefined): Puzzle {
   return puzzles[index];
 }
 
-const [cmd, ...args] = process.argv.slice(2);
+const [cmd, ...args] = process.argv.slice(2).filter((a, i, all) =>
+  a !== '--levels' && all[i - 1] !== '--levels');
 
 switch (cmd) {
   case 'list': {

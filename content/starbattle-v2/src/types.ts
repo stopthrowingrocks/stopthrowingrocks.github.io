@@ -4,6 +4,13 @@ export interface RawLevel {
   stars: number;
   size: number;
   shapes: string[];
+  /**
+   * Cells the puzzle gives away, as `(is-star A1)` or `(is-elim A1)`.
+   *
+   * These are part of the statement, not of the proof: a clue is as given as "three stars to
+   * a row", so it belongs on the starting board rather than in a step that has to justify it.
+   */
+  clues?: string[];
 }
 
 export interface Puzzle {
@@ -12,6 +19,8 @@ export interface Puzzle {
   stars: number;
   size: number;
   regions: number[];
+  /** Clues, parsed: cells the starting board already settles. */
+  givens?: { cell: number; kind: 'star' | 'elim' }[];
 }
 
 /**

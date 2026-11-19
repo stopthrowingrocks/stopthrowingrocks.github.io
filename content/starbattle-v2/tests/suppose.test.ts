@@ -410,3 +410,18 @@ test('folding a record does not touch a cell the board has not settled', () => {
   assert.equal(sup.contradiction, false, 'nothing outside denies it yet');
   assert.ok(sup.cells.some(cell => cell !== null), 'it still has something to offer');
 });
+
+test('a count the board has settled outright needs no hypothesis', () => {
+  /*
+   * Starring A1 eliminates B1 beside it, so both cells of the count resolve and its value is
+   * simply known. `normalize` has dropped any fact that named it, so there is no hypothesis
+   * left to connect -- demanding one asked for something that cannot exist.
+   */
+  const { results } = run(`
+    (suppose S (= (count A1 B1) 1) (claim (is-elim E5) (sorry)))
+    (claim (is-star A1) (sorry))
+    (use S)
+  `);
+  const all = statuses(results);
+  assert.equal(all[all.length - 1], 'ok', all.join(' / '));
+});

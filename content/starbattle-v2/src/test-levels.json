@@ -32,6 +32,15 @@
       "99aaaadbbbbccc",
       "99dddddddccccc",
       "99ddddddcccccc"
+    ],
+    "clues": [
+      "(is-star F2)",
+      "(is-star L2)",
+      "(is-star F4)",
+      "(is-star M4)",
+      "(is-star L6)",
+      "(is-star N8)",
+      "(is-star G14)"
     ]
   }
 ]

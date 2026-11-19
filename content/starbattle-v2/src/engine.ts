@@ -17,7 +17,7 @@ export function initState(puzzle: Puzzle): PState {
       });
     }
   }
-  return {
+  const s: PState = {
     cells: new Array<null>(puzzle.size * puzzle.size).fill(null),
     facts,
     propositions: [],
@@ -25,6 +25,18 @@ export function initState(puzzle: Puzzle): PState {
     contradiction: false,
     admitted: false,
   };
+  /*
+   * Clues go on the starting board, beside the counts rather than after them. A given star is
+   * as much part of the puzzle as "three to a row", so nothing in the proof should have to
+   * justify it — and placing it here means its adjacency fans out and the counts fold by the
+   * time the first statement runs, exactly as they would for a star the proof had derived.
+   */
+  for (const given of puzzle.givens ?? []) {
+    if (given.kind === 'star') setStar(s, given.cell, puzzle.size);
+    else setElim(s, given.cell);
+  }
+  if (puzzle.givens?.length) normalize(s);
+  return s;
 }
 
 /** Deep enough that nothing a supposition records is shared with the state it came from. */
@@ -1309,7 +1321,13 @@ function evalSeq(
           const named = got.factId ? scratch.facts.find(f => f.id === got.factId) : undefined;
           if (!named) { error = 'that hypothesis does not come out as a count'; break; }
           via = [named];
-        } else if (countForm) {
+        } else if (countForm && !goalSatisfiedFrom(prev, sup.pred, [])) {
+          /*
+           * Only when the board does not already decide it. Pass no hypotheses and what is
+           * left is what the cells alone settle: a count whose cells have all resolved is
+           * simply known, and `normalize` has dropped any fact that named it, so demanding a
+           * hypothesis there asks for one that cannot exist.
+           */
           error = `${name} supposes a count — connect the hypothesis that establishes it`;
           break;
         }

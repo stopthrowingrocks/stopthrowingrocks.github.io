@@ -6,6 +6,26 @@ export const REGION_COLORS = [
   '#D4A0E8', '#A0D4C8', '#E8D4A0', '#C8A0C8',
 ];
 
+/**
+ * Read the `(is-star A1)` / `(is-elim A1)` clue forms into cells.
+ *
+ * Deliberately narrow: a clue in this puzzle is a cell given away, so only the two cell
+ * predicates are accepted and anything else throws rather than being skipped. A clue silently
+ * dropped would make a board quietly harder than the one being described.
+ */
+function parseClues(
+  clues: string[] | undefined, size: number, name: string,
+): { cell: number; kind: 'star' | 'elim' }[] | undefined {
+  if (!clues?.length) return undefined;
+  return clues.map(clue => {
+    const m = /^\(\s*is-(star|elim)\s+([A-Za-z]\d+)\s*\)$/.exec(clue.trim());
+    if (!m) throw new Error(`${name}: cannot read the clue ${JSON.stringify(clue)}`);
+    const cell = cellLabelToIndex(m[2], size);
+    if (cell === null) throw new Error(`${name}: ${m[2]} is not a cell on a ${size}x${size} board`);
+    return { cell, kind: m[1] as 'star' | 'elim' };
+  });
+}
+
 export function parseLevels(data: RawLevel[]): Puzzle[] {
   const countByName: Record<string, number> = {};
   return data.map((lvl, i) => {
@@ -17,6 +37,7 @@ export function parseLevels(data: RawLevel[]): Puzzle[] {
       stars: lvl.stars,
       size: lvl.size,
       regions: lvl.shapes.flatMap(row => [...row].map(c => parseInt(c, 36))),
+      givens: parseClues(lvl.clues, lvl.size, name),
     };
   });
 }
