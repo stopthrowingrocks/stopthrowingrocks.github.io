@@ -58,7 +58,7 @@ function App() {
   const [searchActive, setSearchActive] = useState(false);
   const [searchCells, setSearchCells] = useState<number[]>([]);
   const [hoverFact, setHoverFact] = useState<string | null>(null);
-  /** True while a hypothesis is in hand, so wheel and edge scrolling are live. */
+  /** True while a block is in hand, so the wheel can still reach what is under it. */
   const [dragging, setDragging] = useState(false);
   const factsRef = useRef<HTMLDivElement>(null);
   const [renames, setRenames] = useState<Record<string, string>>({});
@@ -158,22 +158,18 @@ function App() {
     : displayState.facts;
 
   /*
-   * Scrolling while a hypothesis is in hand.
+   * The wheel keeps working while a block is in hand; nothing scrolls on its own.
    *
-   * A native HTML5 drag swallows wheel events in most browsers, so a drag that starts in the
-   * facts list cannot otherwise reach a drop target below the fold. `dragover` does keep
-   * firing, with coordinates, so the pointer nearing an edge scrolls whatever is under it --
-   * the facts list by `scrollTop`, the workspace through Blockly, which scrolls its own canvas
-   * rather than a DOM element. A `wheel` listener is registered too, for browsers that do
-   * deliver it: it costs nothing where they don't.
+   * Edge-scrolling used to live here, and it was the problem: reaching for a block near the top
+   * or bottom of the workspace is the ordinary case, needs no scrolling, and scrolling then
+   * pulls the drop target away from the pointer. Turning the wheel is different -- it is asked
+   * for, so it can only surprise you if you did it.
+   *
+   * The shim is needed because a native HTML5 drag swallows wheel events in most browsers, so
+   * without it the wheel does nothing at all mid-drag. Whatever lies under the pointer scrolls:
+   * the facts list by `scrollTop`, the workspace through Blockly, which moves its own canvas
+   * rather than a DOM element.
    */
-  const pointerIn = (el: HTMLElement, x: number, y: number) => {
-    const b = el.getBoundingClientRect();
-    return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom;
-  };
-  const EDGE = 48;      // how close to an edge starts scrolling
-  const EDGE_STEP = 14; // pixels per dragover tick
-
   function scrollUnderPointer(clientX: number, clientY: number, dy: number) {
     if (dy === 0) return;
     const list = factsRef.current;
@@ -187,16 +183,6 @@ function App() {
     workspaceRef.current?.scrollWorkspaceBy(0, dy);
   }
 
-  function autoScrollOnDrag(event: React.DragEvent) {
-    const list = factsRef.current;
-    const host = event.currentTarget as HTMLElement;
-    const box = (list && pointerIn(list, event.clientX, event.clientY))
-      ? list.getBoundingClientRect()
-      : host.getBoundingClientRect();
-    if (event.clientY - box.top < EDGE) scrollUnderPointer(event.clientX, event.clientY, -EDGE_STEP);
-    else if (box.bottom - event.clientY < EDGE) scrollUnderPointer(event.clientX, event.clientY, EDGE_STEP);
-  }
-
   useEffect(() => {
     if (!dragging) return;
     const onWheel = (event: WheelEvent) => {
@@ -206,6 +192,7 @@ function App() {
     window.addEventListener('wheel', onWheel, { passive: false });
     return () => window.removeEventListener('wheel', onWheel);
   }, [dragging]);
+
 
   /** A click on neutral space drops the whole working context: search and scope. */
   function clearContext() {
@@ -409,7 +396,6 @@ function App() {
                   setDragging(true);
                 }}
                 onDragEnd={() => { setHoverFact(null); setDragging(false); }}
-                onDragOver={event => autoScrollOnDrag(event)}
               >
                 {fact.kind === 'region' && <span className="fact-chip" style={{ background: REGION_COLORS[fact.index] ?? '#ddd' }} />}
                 {editingFact === fact.id ? (
@@ -525,10 +511,10 @@ function App() {
         <div
           id="content-workspace"
           onDragOver={event => {
+            // Still needed: without preventDefault the drop is refused outright.
             if (event.dataTransfer.types.includes('application/x-starbattle-hypothesis')) {
               event.preventDefault();
               event.dataTransfer.dropEffect = 'copy';
-              autoScrollOnDrag(event);
             }
           }}
           onDrop={event => {
