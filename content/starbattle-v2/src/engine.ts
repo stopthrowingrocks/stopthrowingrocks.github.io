@@ -1218,16 +1218,26 @@ function evalSeq(
         // Narrows the outer facts by whatever was just imported, which is why narrowed
         // copies of outer facts need no importing — this reproduces them.
         normalize(next);
-        const known = new Set(next.facts.map(f => `${f.op}${f.target}:${f.cells.join(',')}`));
-        let added = 0;
+        /*
+         * What makes two hypotheses the same one: the same count over the same cells. Order
+         * is not part of it. Line facts come out in index order, but a picked list does not
+         * — `(clique D2 E2 D3)` and `(bound >= 0 A14 B14 C14)` carry whatever order they
+         * were clicked in — so comparing the cells as written imports a fact the state
+         * already holds, under a second name.
+         */
+        const assertionKey = (f: Fact) =>
+          `${f.op}${f.target}:${[...f.cells].sort((x, y) => x - y).join(',')}`;
+        const hadId = new Set(next.facts.map(f => f.id));
+        const known = new Set(next.facts.map(assertionKey));
+        let imported = 0;
         for (const fact of sup.facts) {
           if (fact.cells.length === 0) continue;
-          const key = `${fact.op}${fact.target}:${fact.cells.join(',')}`;
+          const key = assertionKey(fact);
           if (known.has(key)) continue;
           const id = `${name}-${fact.id}`;
           if (next.facts.some(f => f.id === id)) continue;
           known.add(key);
-          added += 1;
+          imported += 1;
           next.facts.push({
             ...fact,
             id,
@@ -1237,7 +1247,26 @@ function evalSeq(
             cells: [...fact.cells],
           });
         }
-        if (added) normalize(next);
+        if (imported) {
+          normalize(next);
+          /*
+           * Narrowing can land an imported fact on cells an outer one already covers, so the
+           * check above is not the last word. Keep the first of each assertion — the outer
+           * fact, under the name the reader already knows. An impossible one always stays:
+           * it is what a `via` points at, and dropping it would hide the contradiction.
+           */
+          const seen = new Set<string>();
+          next.facts = next.facts.filter(fact => {
+            if (fact.impossible) return true;
+            const key = assertionKey(fact);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        }
+        // What was actually gained, after duplicates were dropped — so a `use` that imports
+        // nothing new still reports that there was nothing to import.
+        const added = next.facts.filter(fact => !hadId.has(fact.id)).length;
         /*
          * Suppositions the body made are conditional on this one's predicate, and that
          * predicate has just been established -- so they hold here too, and discharging this
@@ -1318,7 +1347,24 @@ function evalSeq(
           addGoalFacts(next, puzzle, goal, 'prv');
           note = 'admitted without proof';
         }
-        else if (!b.contradiction) error = 'connect the contradictory hypothesis at the end';
+        /*
+         * With nothing connected, the body's own state can still close the goal: if it is
+         * contradictory, falsity is already derived and there is nothing left to name.
+         *
+         * This is the case `use` creates. Discharging a supposition whose cells disagree with
+         * the board marks the state contradictory through the cells, so no single hypothesis
+         * is impossible and there is nothing a `via` could point at — which left an otherwise
+         * finished argument unclosable. A supplied `via` still goes through the check below,
+         * so an argument that names its reason is held to it.
+         */
+        else if (!b.contradiction) {
+          if (end.contradiction) {
+            addGoalFacts(next, puzzle, goal, 'prv');
+            note = 'the body is contradictory, which closes the goal';
+          } else {
+            error = 'connect the contradictory hypothesis at the end';
+          }
+        }
         else {
           const contradictionState = cloneState(end);
           contradictionState.contradiction = false;

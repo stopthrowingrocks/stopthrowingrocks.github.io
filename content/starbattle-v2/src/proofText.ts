@@ -16,7 +16,7 @@ import { cellLabelToIndex, posLabel } from './puzzles';
  *               | (split <hyp> <name|_> <hyp>*)
  *               | (argument <stmt>*) | (sorry)
  *               | (claim <bool> <stmt>*)
- *               | (by-contradiction (body <stmt>*) (via <hyp>))
+ *               | (by-contradiction (body <stmt>*) [(via <hyp>)])
  *               | (constructor (left <stmt>*) (right <stmt>*))
  *               | (by-cases left|right (positive <stmt>*) (negative <stmt>*))
  *   hyp        := <fact> | (+ <hyp> <hyp>) | (- <hyp> <hyp>) | (combine <hyp> <hyp>)
@@ -62,9 +62,12 @@ Statements (a proof is zero or more of these, one after another):
                                     proving it — the proof is incomplete until it is replaced
   (claim <bool> <stmt>*)           prove a predicate; body proves it directly,
                                     or via nested by-contradiction/constructor/by-cases
-  (by-contradiction (body <stmt>*) (via <hyp>))
+  (by-contradiction (body <stmt>*) [(via <hyp>)])
                                     assume the active goal's negation, derive a
-                                    contradiction; <via> must name/derive it
+                                    contradiction; <via> must name/derive it. Omit the
+                                    whole section when the body's own state is already
+                                    contradictory — a conflict in the cells leaves no
+                                    hypothesis to name
   (constructor (left <stmt>*) (right <stmt>*))
                                     prove an AND goal by proving both sides
   (by-cases left|right (positive <stmt>*) (negative <stmt>*))
@@ -272,8 +275,13 @@ function printBlockCore(b: Block, puzzle: Puzzle, results?: Results): Sx {
     }
     case 'by_contradiction': {
       const body = b.body.map(child => printBlock(child, puzzle, results));
-      const via = printHyp(b.contradiction, puzzle);
-      return tagged('by-contradiction', [tagged('body', body), tagged('via', [via])]);
+      // Nothing connected means the body's own state closes it, so there is no section to
+      // print. Writing `(via _)` would round-trip to the same block but reads as an unfilled
+      // slot rather than a deliberate omission.
+      const sections = b.contradiction
+        ? [tagged('body', body), tagged('via', [printHyp(b.contradiction, puzzle)])]
+        : [tagged('body', body)];
+      return tagged('by-contradiction', sections);
     }
     case 'constructor': {
       const left = b.left.map(child => printBlock(child, puzzle, results));
@@ -471,11 +479,17 @@ function parseBool(sx: Sx | undefined, puzzle: Puzzle): BoolExpr | null {
   throw new ParseError(`unknown Boolean expression "${kw}" on line ${sx.line}`);
 }
 
+/** Find `(tag ...)` among `items` (a section list), or null when it is absent. */
+function optionalSection(items: Sx[], tag: string): Sx[] | null {
+  const found = items.find(item => item.t === 'list' && item.v[0]?.t === 'atom' && item.v[0].v === tag);
+  return found && found.t === 'list' ? found.v.slice(1) : null;
+}
+
 /** Find `(tag ...)` among `items` (a section list); throws if missing. */
 function section(items: Sx[], tag: string, formLine: number): Sx[] {
-  const found = items.find(item => item.t === 'list' && item.v[0]?.t === 'atom' && item.v[0].v === tag);
-  if (!found || found.t !== 'list') throw new ParseError(`expected a (${tag} ...) section (line ${formLine})`);
-  return found.v.slice(1);
+  const found = optionalSection(items, tag);
+  if (!found) throw new ParseError(`expected a (${tag} ...) section (line ${formLine})`);
+  return found;
 }
 
 function parseStmt(sx: Sx, puzzle: Puzzle): Block {
@@ -540,9 +554,12 @@ function parseStmt(sx: Sx, puzzle: Puzzle): Block {
     }
     case 'by-contradiction': {
       const bodyItems = section(items.slice(1), 'body', sx.line);
-      const viaItems = section(items.slice(1), 'via', sx.line);
       const body = bodyItems.map(s => parseStmt(s, puzzle));
-      const contradiction = parseHyp(viaItems[0], puzzle);
+      // `via` is optional: a body whose own state is contradictory has already derived
+      // falsity, and when the contradiction is in the cells rather than in a count there is
+      // no hypothesis to name. The engine still refuses an arm that closes neither way.
+      const viaItems = optionalSection(items.slice(1), 'via');
+      const contradiction = viaItems ? parseHyp(viaItems[0], puzzle) : null;
       return { id, type: 'by_contradiction', body, contradiction };
     }
     case 'constructor': {

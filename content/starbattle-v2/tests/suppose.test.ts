@@ -216,3 +216,42 @@ test('exposing does not clobber a supposition already in scope', () => {
   assert.equal(named[0].pred.kind, 'is_star');
   assert.equal((named[0].pred as { cell: number }).cell, 2 * P.size + 2, 'C3, the outer T');
 });
+
+/*
+ * Closing an arm on a contradictory board, with nothing connected.
+ *
+ * `use` can mark the state contradictory through the cells: the record says one thing about a
+ * cell and the board already says another. No count is left impossible when that happens, so
+ * there is no hypothesis for a `via` to name, and requiring one made a finished argument
+ * unclosable. The body having reached falsity is itself what closes the goal.
+ */
+test('a by-contradiction closes on a cell conflict from use, with no via', () => {
+  const { results, final } = run(`
+    (suppose S (is-elim E5) (claim (is-star C3) (sorry)))
+    (claim (is-star C3)
+      (by-contradiction
+        (body
+          (claim (is-elim E5) (sorry))
+          (use S))))
+  `);
+  const all = statuses(results);
+  assert.ok(!all.some(s => s.startsWith('error')), all.join(' / '));
+  assert.equal(final.cells[2 * P.size + 2], 'star', 'C3 is proved a star');
+  // The point of the change: nothing was impossible, so no `via` could have been supplied.
+  assert.ok(!final.facts.some(f => f.impossible), 'the contradiction was in the cells, not a count');
+});
+
+test('a by-contradiction whose body is not contradictory still demands a via', () => {
+  const { results } = run(`
+    (claim (is-elim C1) (by-contradiction (body)))
+  `);
+  assert.match(statuses(results)[0], /connect the contradictory hypothesis/);
+});
+
+test('a by-contradiction with no via round-trips through the text format', () => {
+  const text = '(claim (is-star C3)\n  (by-contradiction\n    (body\n      (sorry))))';
+  const blocks = parseProof(text, P);
+  const printed = printProof(blocks, P);
+  assert.ok(!printed.includes('via'), `no empty via section should be printed:\n${printed}`);
+  assert.equal(printProof(parseProof(printed, P), P).trim(), printed.trim());
+});
