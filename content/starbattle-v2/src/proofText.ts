@@ -268,7 +268,9 @@ function printBlockCore(b: Block, puzzle: Puzzle, results?: Results): Sx {
       };
     }
     // A name, not an expression: there is no contrapositive wrapper to justify a slot.
-    case 'use': return tagged('use', [atom(printAtomOrString(b.name))]);
+    case 'use': return b.expr
+      ? tagged('use', [atom(printAtomOrString(b.name)), printHyp(b.expr, puzzle)])
+      : tagged('use', [atom(printAtomOrString(b.name))]);
     case 'claim': {
       const body = b.body.map(child => printBlock(child, puzzle, results));
       return { t: 'list', v: [atom('claim'), printBool(b.pred, puzzle), ...body], line: 0, bodyFrom: 2 };
@@ -546,7 +548,12 @@ function parseStmt(sx: Sx, puzzle: Puzzle): Block {
       const body = items.slice(3).map(s => parseStmt(s, puzzle));
       return { id, type: 'suppose', name, pred, body };
     }
-    case 'use': return { id, type: 'use', name: expectAtom(items[1], 'the name of a supposition') };
+    case 'use': return {
+      id, type: 'use',
+      name: expectAtom(items[1], 'the name of a supposition'),
+      // Optional: only a count-form predicate needs a hypothesis to establish it.
+      expr: items[2] ? parseHyp(items[2], puzzle) : null,
+    };
     case 'claim': {
       const pred = parseBool(items[1], puzzle);
       const body = items.slice(2).map(s => parseStmt(s, puzzle));

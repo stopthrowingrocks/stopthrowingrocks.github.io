@@ -141,7 +141,16 @@ export type Block =
   | { id: string; type: 'argument'; body: Block[] }
   | { id: string; type: 'sorry' }
   | { id: string; type: 'suppose'; name: string; pred: BoolExpr | null; body: Block[] }
-  | { id: string; type: 'use'; name: string }
+  /**
+   * Discharge a supposition. `expr` names the hypothesis that establishes its predicate.
+   *
+   * A cell-form predicate needs none: `(is-star A1)` is either on the board or it is not.
+   * A count-form one is only ever *entailed* — `★{A1 C1} >= 1` establishes
+   * `★{A1 B1 C1 L1 M1 N1} >= 2` once B1, L1 and N1 are out and M1 is starred — and leaving
+   * the engine to find the entailing hypothesis by scanning keeps the reason out of the proof.
+   * So it is optional in the slot and required in that case.
+   */
+  | { id: string; type: 'use'; name: string; expr?: HypExpr | null }
   | { id: string; type: 'claim'; pred: BoolExpr | null; body: Block[] }
   | { id: string; type: 'by_contradiction'; body: Block[]; contradiction: HypExpr | null }
   | { id: string; type: 'constructor'; left: Block[]; right: Block[] }

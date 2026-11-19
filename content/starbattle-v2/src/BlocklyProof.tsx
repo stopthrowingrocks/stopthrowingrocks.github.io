@@ -567,11 +567,17 @@ function registerBlocks() {
     init() {
       this.appendDummyInput().appendField('use')
         .appendField(new Blockly.FieldDropdown(suppositionOptions), 'NAME');
+      // Optional, and only a count-form supposition needs it: `(is-star A1)` is visible on
+      // the board, while a count is entailed, and the proof should say by what.
+      this.appendValueInput('VIA').setCheck(['Hypothesis', 'HypothesisExpression'])
+        .appendField('by');
+      this.setInputsInline(true);
       this.setPreviousStatement(true, 'Proof');
       this.setNextStatement(true, 'Proof');
       this.setColour(160);
       this.setTooltip('Bring in what a supposition derived. Needs the supposition itself ' +
-        'to be established here first.');
+        'to be established here first. Connect the hypothesis that establishes it when the ' +
+        'supposition is a count — a count is never visible on the board, only entailed.');
     },
   };
   Blockly.Blocks.sb_or_elim = {
@@ -952,7 +958,11 @@ function proofBlock(block: Blockly.Block, puzzle: Puzzle): Block | null {
       pred: boolExpr(block.getInputTargetBlock('PRED'), puzzle),
       body: proofSequence(block.getInputTargetBlock('BODY'), puzzle),
     };
-    case 'sb_use': return { id: block.id, type: 'use', name: block.getFieldValue('NAME') ?? '' };
+    case 'sb_use': return {
+      id: block.id, type: 'use',
+      name: block.getFieldValue('NAME') ?? '',
+      expr: factExpression(block.getInputTargetBlock('VIA'), puzzle),
+    };
     case 'sb_claim': return {
       id: block.id,
       type: 'claim',

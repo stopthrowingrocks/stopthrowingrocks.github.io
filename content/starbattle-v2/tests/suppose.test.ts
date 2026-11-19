@@ -255,3 +255,122 @@ test('a by-contradiction with no via round-trips through the text format', () =>
   assert.ok(!printed.includes('via'), `no empty via section should be printed:\n${printed}`);
   assert.equal(printProof(parseProof(printed, P), P).trim(), printed.trim());
 });
+
+/*
+ * A count goal is read against the board, not matched cell for cell.
+ *
+ * `normalize` folds a settled cell out of every fact, so a conclusion stated over cells that
+ * have since settled has no fact naming it any more. The goal therefore gets the same folding
+ * a fact does -- a star pays one off the target, an eliminated cell drops out -- and what is
+ * left is matched by containment, since a lower bound over part of a set bounds the whole of
+ * it and an upper bound over a set bounds any part.
+ */
+test('a count goal folds settled cells out before matching', () => {
+  // ★{A1 B1 C1} >= 1 with B1 crossed out is exactly the ★{A1 C1} >= 1 already held.
+  const { results } = run(`
+    (claim (is-elim B1) (sorry))
+    (claim (>= (count A1 C1) 1) (sorry))
+    (claim (>= (count A1 B1 C1) 1))
+  `);
+  const all = statuses(results);
+  assert.equal(all[all.length - 1], 'ok', `the folded goal should hold: ${all.join(' / ')}`);
+});
+
+test('a star in a count goal pays one off its target', () => {
+  const { results } = run(`
+    (claim (is-star A1) (sorry))
+    (claim (>= (count C1 E1) 1) (sorry))
+    (claim (>= (count A1 C1 E1) 2))
+  `);
+  const all = statuses(results);
+  assert.equal(all[all.length - 1], 'ok', `A1 starred should cover one of the two: ${all.join(' / ')}`);
+});
+
+test('a lower bound carries from a subset to a superset', () => {
+  const { results } = run(`
+    (claim (>= (count A1 C1) 1) (sorry))
+    (claim (>= (count A1 C1 E1) 1))
+  `);
+  const all = statuses(results);
+  assert.equal(all[all.length - 1], 'ok', `a superset holds the same lower bound: ${all.join(' / ')}`);
+});
+
+test('a lower bound does NOT carry from a superset to a subset', () => {
+  // The unsound direction: the star the bound promises may be the cell left out.
+  const { results } = run(`
+    (claim (>= (count A1 C1 E1) 1) (sorry))
+    (claim (>= (count A1 C1) 1))
+  `);
+  const all = statuses(results);
+  assert.match(all[all.length - 1], /was not proved/,
+    `narrowing a lower bound must be refused: ${all.join(' / ')}`);
+});
+
+test('an upper bound carries from a superset to a subset', () => {
+  const { results } = run(`
+    (claim (<= (count A1 C1 E1) 0) (sorry))
+    (claim (<= (count A1 C1) 0))
+  `);
+  const all = statuses(results);
+  assert.equal(all[all.length - 1], 'ok', `a subset keeps the upper bound: ${all.join(' / ')}`);
+});
+
+/*
+ * Discharging a count-form supposition names its justification.
+ *
+ * `(is-star A1)` is visible on the board, so `use` needs nothing to check it against. A count
+ * is only ever entailed — `★{A1 C1} >= 1` entails `★{A1 B1 C1} >= 1` once B1 is crossed out —
+ * and letting the engine find the entailing hypothesis by scanning the pool discharges the
+ * supposition without recording why. The hypothesis slot is optional, and required here.
+ */
+test('using a count-form supposition requires the hypothesis that establishes it', () => {
+  const { results } = run(`
+    (claim (is-elim B1) (sorry))
+    (claim (>= (count A1 C1) 1) (sorry))
+    (suppose S (>= (count A1 B1 C1) 1) (claim (is-elim E5) (sorry)))
+    (use S)
+  `);
+  const all = statuses(results);
+  assert.match(all[all.length - 1], /supposes a count/, all.join(' / '));
+});
+
+test('naming the entailing hypothesis discharges it', () => {
+  const { results } = run(`
+    (claim (is-elim B1) (sorry))
+    (claim (>= (count A1 C1) 1) (sorry))
+    (suppose S (>= (count A1 B1 C1) 1) (claim (is-elim E5) (sorry)))
+    (use S "clm0_2>=1")
+  `);
+  const all = statuses(results);
+  assert.equal(all[all.length - 1], 'ok', all.join(' / '));
+});
+
+test('a hypothesis that does not entail the supposition is refused', () => {
+  // row2 is a perfectly good hypothesis; it just says nothing about this count.
+  const { results } = run(`
+    (claim (is-elim B1) (sorry))
+    (claim (>= (count A1 C1) 1) (sorry))
+    (suppose S (>= (count A1 B1 C1) 1) (claim (is-elim E5) (sorry)))
+    (use S row2)
+  `);
+  const all = statuses(results);
+  assert.match(all[all.length - 1], /not established/, all.join(' / '));
+});
+
+test('a cell-form supposition still needs no hypothesis', () => {
+  const { results } = run(`
+    (suppose T (is-star A1) (claim (is-elim C3) (sorry)))
+    (claim (is-star A1) (sorry))
+    (use T)
+  `);
+  const all = statuses(results);
+  assert.equal(all[all.length - 1], 'ok', all.join(' / '));
+});
+
+test('a use with a hypothesis round-trips through the text format', () => {
+  const text = '(use S "clm0_2>=1")';
+  const blocks = parseProof(text, P);
+  const printed = printProof(blocks, P);
+  assert.match(printed, /clm0_2>=1/, printed);
+  assert.equal(printProof(parseProof(printed, P), P).trim(), printed.trim());
+});

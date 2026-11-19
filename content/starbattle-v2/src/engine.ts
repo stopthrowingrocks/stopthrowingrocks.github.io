@@ -919,6 +919,17 @@ function addGoalFacts(s: PState, puzzle: Puzzle, pred: BoolExpr | null, prefix: 
 }
 
 function goalSatisfied(s: PState, pred: BoolExpr | null): boolean {
+  return goalSatisfiedFrom(s, pred, s.facts);
+}
+
+/**
+ * As `goalSatisfied`, but the count part may only draw on `facts`.
+ *
+ * `use` passes the single hypothesis the proof named, so discharging a count-form
+ * supposition is justified by that hypothesis rather than by whatever the pool happened
+ * to contain.
+ */
+function goalSatisfiedFrom(s: PState, pred: BoolExpr | null, facts: Fact[]): boolean {
   if (s.contradiction || s.admitted) return true;
   if (pred?.kind === 'is_star') return s.cells[pred.cell] === 'star';
   if (pred?.kind === 'is_elim') return s.cells[pred.cell] === 'elim';
@@ -935,22 +946,47 @@ function goalSatisfied(s: PState, pred: BoolExpr | null): boolean {
    * Two arms of a case split must state their shared conclusion the same way, and without this
    * the form of a fact depends on which arm's history produced it.
    */
-  const knownCount = (cells: number[], op: FactOp, k: number): boolean => {
-    let stars = 0;
-    for (const c of cells) {
-      if (s.cells[c] === 'star') stars++;
-      else if (s.cells[c] === null) return false;   // still open: the board does not decide it
+  /*
+   * ...and the open remainder is matched against the hypotheses by containment, not equality.
+   * A lower bound over part of a set is a lower bound over the whole of it, and an upper bound
+   * over a set bounds any part of it. Demanding the very same cells made a conclusion
+   * unprovable as soon as the board moved underneath it: holding `★{A1 C1} >= 1` with B1 and
+   * L1 crossed out and M1 starred does not look like `★{A1 B1 C1 L1 M1 N1} >= 2` to a
+   * cell-for-cell comparison, though it entails it.
+   */
+  const givesLower = (op: FactOp) => op === '>=' || op === '=';
+  const givesUpper = (op: FactOp) => op === '<=' || op === '=';
+  const within = (inner: number[], outer: number[]) => inner.every(cell => outer.includes(cell));
+  const sorted = (cells: number[]) => [...cells].sort((a, b) => a - b);
+  /** `★{open} >= need`, from a lower bound over any subset of `open`. */
+  const lowerHolds = (open: number[], need: number): boolean =>
+    need <= 0 || facts.some(f =>
+      !f.impossible && givesLower(f.op) && f.target >= need && within(f.cells, open));
+  /** `★{open} <= need`, from an upper bound over any superset of `open`. */
+  const upperHolds = (open: number[], need: number): boolean =>
+    need >= open.length || facts.some(f =>
+      !f.impossible && givesUpper(f.op) && f.target <= need && within(open, f.cells));
+
+  const forced = (cells: number[], op: FactOp, k: number): boolean => {
+    let need = k;
+    const open: number[] = [];
+    for (const cell of cells) {
+      if (s.cells[cell] === 'star') need--;          // a star pays one off the target
+      else if (s.cells[cell] === null) open.push(cell);
+      // an eliminated cell contributes nothing and drops out
     }
-    if (op === '=') return stars === k;
-    if (op === '!=') return stars !== k;
-    if (op === '<=') return stars <= k;
-    return stars >= k;
+    if (op === '>=') return lowerHolds(open, need);
+    if (op === '<=') return upperHolds(open, need);
+    if (op === '=') return lowerHolds(open, need) && upperHolds(open, need);
+    // `≠` holds once a bound rules the forbidden value out, or a `≠` hypothesis says so.
+    return lowerHolds(open, need + 1) || upperHolds(open, need - 1)
+      || facts.some(f => f.op === '!=' && !f.impossible && f.target === need
+        && sameCells(sorted(f.cells), sorted(open)));
   };
   const key = propositionKey(pred);
   if (key !== null && s.propositions.some(prop => propositionKey(prop) === key)) return true;
   const c = claimConclusion(pred);
-  return !('error' in c) && c.lits.every(l => knownCount(l.cells, l.op, l.k)
-    || s.facts.some(f => f.op === l.op && f.target === l.k && sameCells(f.cells, l.cells)));
+  return !('error' in c) && c.lits.every(l => forced(l.cells, l.op, l.k));
 }
 
 function sequenceErrored(blocks: Block[], results: Map<string, BlockResult>): boolean {
@@ -1194,7 +1230,25 @@ function evalSeq(
         if (!name) { error = 'choose a supposition'; break; }
         const sup = prev.suppositions.find(s => s.name === name);
         if (!sup) { error = 'that supposition is not available here'; break; }
-        if (!goalSatisfied(prev, sup.pred)) {
+        /*
+         * A count-form predicate is only ever entailed, never visible on the board, so the
+         * proof names the hypothesis that entails it. Scanning the pool instead discharges the
+         * supposition without recording why, and the reason is the interesting part.
+         */
+        const countForm = sup.pred?.kind === 'cmp';
+        let via: Fact[] = prev.facts;
+        if (b.expr) {
+          const scratch = cloneState(prev);
+          const got = applyHypExpression(scratch, puzzle, b.expr, `use:${b.id}`, 'use');
+          if (got.error) { error = got.error; break; }
+          const named = got.factId ? scratch.facts.find(f => f.id === got.factId) : undefined;
+          if (!named) { error = 'that hypothesis does not come out as a count'; break; }
+          via = [named];
+        } else if (countForm) {
+          error = `${name} supposes a count — connect the hypothesis that establishes it`;
+          break;
+        }
+        if (!goalSatisfiedFrom(prev, sup.pred, via)) {
           error = `${name} is not established — prove its supposition first`;
           break;
         }
