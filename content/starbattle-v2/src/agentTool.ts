@@ -17,7 +17,7 @@ function renderBoard(state: PState, puzzle: Puzzle): string {
   const rows = Array.from({ length: N }, (_, r) => {
     const cells = Array.from({ length: N }, (_, c) => {
       const k = state.cells[r * N + c];
-      return k === 'star' ? '★' : k === 'elim' ? '·' : '?';
+      return k === 'star' ? '★' : k === 'elim' ? '·' : k === 'contradiction' ? '⊥' : '?';
     });
     return `${String(r + 1).padStart(2)} ${cells.join(' ')}`;
   });

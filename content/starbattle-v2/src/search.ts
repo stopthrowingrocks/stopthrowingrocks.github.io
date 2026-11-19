@@ -632,7 +632,9 @@ const factKey = (fact: Fact): string => `${fact.op}${fact.target}:${fact.cells.j
 
 /** Board plus hypotheses, by content: two states that know the same things are one node. */
 function stateKey(state: PState): string {
-  const board = state.cells.map(c => (c === 'star' ? '*' : c === 'elim' ? 'x' : '.')).join('');
+  const board = state.cells
+    .map(c => (c === 'star' ? '*' : c === 'elim' ? 'x' : c === 'contradiction' ? '!' : '.'))
+    .join('');
   const facts = state.facts.map(factKey).sort().join(';');
   return `${board}|${state.contradiction ? '!' : ''}${facts}`;
 }

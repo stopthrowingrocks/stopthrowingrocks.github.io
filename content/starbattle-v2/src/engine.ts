@@ -51,8 +51,9 @@ function cloneState(s: PState): PState {
 /** Place a star; adjacency (the `adj` constraint) eliminates every neighbour. */
 function setStar(s: PState, idx: number, N: number): void {
   const cur = s.cells[idx];
-  if (cur === 'star') return;
-  if (cur === 'elim') { s.contradiction = true; return; }
+  if (cur === 'star' || cur === 'contradiction') return;
+  // Required to be both: the cell itself records that, rather than one mark quietly winning.
+  if (cur === 'elim') { s.cells[idx] = 'contradiction'; s.contradiction = true; return; }
   s.cells[idx] = 'star';
   for (const n of neighbors(idx, N)) {
     if (s.cells[n] === 'star') s.contradiction = true;
@@ -82,8 +83,8 @@ function setStars(s: PState, cells: number[], N: number): void {
     }
   }
   for (const c of cells) {
-    if (s.cells[c] === 'elim') s.contradiction = true;
-    s.cells[c] = 'star';
+    if (s.cells[c] === 'elim') { s.cells[c] = 'contradiction'; s.contradiction = true; }
+    else if (s.cells[c] !== 'contradiction') s.cells[c] = 'star';
   }
   for (const c of cells) {
     for (const n of neighbors(c, N)) {
@@ -95,7 +96,8 @@ function setStars(s: PState, cells: number[], N: number): void {
 }
 
 function setElim(s: PState, idx: number): void {
-  if (s.cells[idx] === 'star') { s.contradiction = true; return; }
+  if (s.cells[idx] === 'contradiction') return;
+  if (s.cells[idx] === 'star') { s.cells[idx] = 'contradiction'; s.contradiction = true; return; }
   s.cells[idx] = 'elim';
 }
 
@@ -174,6 +176,9 @@ function normalize(s: PState): void {
       const k = s.cells[c];
       if (k === 'star') target--;
       else if (k === null) cells.push(c);
+      // `elim` contributes nothing, and `contradiction` drops out the same way: it is settled,
+      // so it is not open, and the state carrying it is already flagged — what it would count
+      // for cannot matter, since nothing derived from a contradictory state is used.
     }
     let impossible = false;
     let keep = true;
@@ -1695,5 +1700,8 @@ export function evaluate(puzzle: Puzzle, blocks: Block[]): {
 }
 
 export function isSolved(s: PState): boolean {
-  return !s.contradiction && s.cells.every(c => c !== null);
+  // A `contradiction` cell is settled, so `every(c => c !== null)` would call it proven. The
+  // flag always accompanies one, but say it outright rather than lean on that.
+  return !s.contradiction
+    && s.cells.every(c => c !== null && c !== 'contradiction');
 }

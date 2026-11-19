@@ -115,6 +115,20 @@ export function Board({ puzzle, cells, highlight, hover, coverage, picking, onCe
             <span style={{ display: 'block', fontSize: `calc(${sz} * 0.55)`, color: '#111', lineHeight: 1 }}>★</span>
           )}
           {cells[idx] === 'elim' && <ElimX />}
+          {/*
+            ⊥ — required to be a star and required to be empty. Drawn in place of both marks
+            rather than beside them: the point is that the cell has no consistent value, and
+            showing a star with a cross through it would read as one mark overriding the other.
+          */}
+          {cells[idx] === 'contradiction' && (
+            <span
+              title="This cell must hold a star and must be empty"
+              style={{
+                display: 'block', fontSize: `calc(${sz} * 0.6)`, color: '#b00020',
+                lineHeight: 1, fontWeight: 700,
+              }}
+            >⊥</span>
+          )}
         </td>,
       );
     }

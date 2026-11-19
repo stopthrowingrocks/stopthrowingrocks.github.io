@@ -14,8 +14,16 @@ export interface Puzzle {
   regions: number[];
 }
 
-/** What the proof currently knows about a cell. */
-export type CellK = 'star' | 'elim' | null;
+/**
+ * What the proof currently knows about a cell.
+ *
+ * `contradiction` is the cell-local impossibility: the proof has required this cell to hold a
+ * star *and* to be empty. It is a settled value, not an absence of one — the board says
+ * something definite and what it says cannot be true. Two adjacent stars are not this: both
+ * cells are consistently starred and the clash is in the adjacency between them, so that
+ * remains a state-level flag with no single site to blame.
+ */
+export type CellK = 'star' | 'elim' | 'contradiction' | null;
 
 export type LineKind = 'row' | 'col' | 'region';
 
