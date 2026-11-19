@@ -163,14 +163,36 @@ function foldSupposition(sup: Supposition, cells: CellK[]): Supposition {
       if (known === 'star') target--;
       else if (known === null) open.push(c);
     }
+    /*
+     * Impossibility is settled here too, the same way `normalize` settles it for a live fact,
+     * because a recorded count the board has ruled out refutes the supposition exactly as a
+     * recorded cell does: `pred` implies the count, the board has settled every cell it
+     * covered, and `★{} = 1` cannot hold. Leaving the flag unset recorded a supposition that
+     * is already refuted as if it were still open, which is the thing worth seeing.
+     */
     let keep = true;
+    let impossible = false;
     switch (f.op) {
-      case '=': keep = target < 0 || target > open.length || open.length > 0; break;
-      case '<=': keep = target < 0 || (open.length > 0 && target < open.length); break;
-      case '>=': keep = target > open.length || target > 0; break;
-      case '!=': keep = !(target < 0 || target > open.length); break;
+      case '=':
+        impossible = target < 0 || target > open.length;
+        keep = impossible || open.length > 0;
+        break;
+      case '<=':
+        impossible = target < 0;
+        keep = impossible || (open.length > 0 && target < open.length);
+        break;
+      case '>=':
+        impossible = target > open.length;
+        keep = impossible || target > 0;
+        break;
+      case '!=':
+        if (target < 0 || target > open.length) keep = false;   // unreachable, so satisfied
+        else if (open.length === 0) impossible = true;          // landed on the forbidden value
+        break;
     }
-    if (keep) facts.push({ ...f, cells: open, target });
+    if (!keep) continue;
+    if (impossible) contradiction = true;
+    facts.push({ ...f, cells: open, target, impossible });
   }
 
   return {
@@ -236,22 +258,47 @@ function normalize(s: PState): void {
   }
 }
 
+/**
+ * What this hypothesis settles on its own, if anything: 'stars' when every cell it covers has
+ * to hold one, 'elims' when none of them can. The one place that decides it, so what the
+ * hypothesis list paints as one step from progress is exactly what that step will accept.
+ *
+ * A ≠ fact only ever settles its cell when it covers one: forbidding 0 there forces a star and
+ * forbidding 1 forces an elimination. An impossible fact settles nothing — the branch holding
+ * it is already closed.
+ */
+export function forcedAction(f: Fact): 'stars' | 'elims' | null {
+  if (f.impossible) return null;
+  if (f.op === '!=') {
+    if (f.cells.length !== 1) return null;
+    return f.target === 0 ? 'stars' : f.target === 1 ? 'elims' : null;
+  }
+  if (f.op !== '<=' && f.target > 0 && f.cells.length === f.target) return 'stars';
+  if (f.op !== '>=' && f.target === 0 && f.cells.length > 0) return 'elims';
+  return null;
+}
+
+/** Why `stars` turned this hypothesis down. Explains `forcedAction`'s verdict, never decides it. */
+function starsError(f: Fact): string {
+  if (f.op === '<=') return 'an upper bound cannot force stars';
+  if (f.op === '!=') return 'a ≠ fact only forces a star when it covers one cell and forbids 0';
+  if (f.target === 0) return 'no stars remain in this line — use "cross out" instead';
+  return `not forced: ${f.target} star${f.target === 1 ? '' : 's'} among ${f.cells.length} cells`;
+}
+
+/** Why `cross out` turned this hypothesis down. */
+function elimsError(f: Fact): string {
+  if (f.op === '>=') return 'a lower bound cannot force eliminations';
+  if (f.op === '!=') return 'a ≠ fact only forces an elimination when it covers one cell and forbids 1';
+  if (f.cells.length === 0) return 'nothing left to cross out';
+  return `not forced: ${f.target} star${f.target === 1 ? '' : 's'} still needed among these cells`;
+}
+
 function applyStars(s: PState, puzzle: Puzzle, factId: string | null): { error?: string; note?: string } {
   if (!factId) return { error: 'choose a fact' };
   const f = s.facts.find(x => x.id === factId);
   if (!f) return { error: 'that fact is not available here' };
-  if (f.op === '<=') return { error: 'an upper bound cannot force stars' };
-  if (f.op === '!=') {
-    // A single-cell ≠ 0 fact means that cell must hold a star.
-    if (f.cells.length !== 1 || f.target !== 0) {
-      return { error: 'a ≠ fact only forces a star when it covers one cell and forbids 0' };
-    }
-  } else {
-    if (f.target === 0) return { error: 'no stars remain in this line — use "cross out" instead' };
-    if (f.cells.length !== f.target) {
-      return { error: `not forced: ${f.target} star${f.target === 1 ? '' : 's'} among ${f.cells.length} cells` };
-    }
-  }
+  if (forcedAction(f) !== 'stars') return { error: starsError(f) };
   const placed = [...f.cells];
   s.facts = s.facts.filter(x => x.id !== factId);
   setStars(s, placed, puzzle.size);
@@ -263,15 +310,7 @@ function applyElims(s: PState, puzzle: Puzzle, factId: string | null): { error?:
   if (!factId) return { error: 'choose a fact' };
   const f = s.facts.find(x => x.id === factId);
   if (!f) return { error: 'that fact is not available here' };
-  if (f.op === '>=') return { error: 'a lower bound cannot force eliminations' };
-  if (f.op === '!=') {
-    // A single-cell ≠ 1 fact means that cell cannot hold a star.
-    if (f.cells.length !== 1 || f.target !== 1) {
-      return { error: 'a ≠ fact only forces an elimination when it covers one cell and forbids 1' };
-    }
-  } else if (f.target !== 0) {
-    return { error: `not forced: ${f.target} star${f.target === 1 ? '' : 's'} still needed among these cells` };
-  }
+  if (forcedAction(f) !== 'elims') return { error: elimsError(f) };
   const crossed = [...f.cells];
   s.facts = s.facts.filter(x => x.id !== factId);
   for (const c of crossed) setElim(s, c);
@@ -1387,7 +1426,20 @@ function evalSeq(
         const known = new Set(next.facts.map(assertionKey));
         let imported = 0;
         for (const fact of sup.facts) {
-          if (fact.cells.length === 0) continue;
+          /*
+           * A record folded down to no cells is imported like any other, not skipped.
+           *
+           * It still says something: `★{} = 1` is "one star among none", which cannot hold.
+           * `pred` implies the count and the board has since settled every cell it covered,
+           * so between them they are inconsistent. Handing it to `normalize` is all that is
+           * needed -- it marks the fact impossible, sets the contradiction, and keeps it, so
+           * the branch closes and a `via` has something to name. One that folded down
+           * satisfiably, `★{} = 0`, is dropped there as vacuous, which is the right answer
+           * for it too.
+           *
+           * Skipping these lost exactly the case worth having: a supposition whose consequence
+           * the board has ruled out is how a refutation gets made.
+           */
           const key = assertionKey(fact);
           if (known.has(key)) continue;
           const id = `${name}-${fact.id}`;

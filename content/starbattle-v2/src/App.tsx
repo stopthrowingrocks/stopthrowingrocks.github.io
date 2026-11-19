@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Block, Fact, HypExpr, PState, Puzzle, RawLevel } from './types';
 import { parseLevels, groupPuzzles, factName, posLabel, REGION_COLORS } from './puzzles';
-import { childContainers, containsSorry, evaluate, hypothesisForm, isSolved, opSymbol, predicateText } from './engine';
+import {
+  childContainers, containsSorry, evaluate, forcedAction, hypothesisForm, isSolved, opSymbol, predicateText,
+} from './engine';
 import { Board, type Coverage } from './Board';
 import { BlocklyProof, type ProofWorkspaceHandle } from './BlocklyProof';
 import levelsData from './levels.json';
@@ -369,12 +371,22 @@ function App() {
             {searchActive && searchCells.length > 0 && visibleFacts.length === 0 && (
               <div className="fact-empty">No hypotheses reference those cells.</div>
             )}
-            {visibleFacts.map(fact => (
+            {/*
+              A hypothesis that settles its own cells is marked: those are the rows one step
+              from progress, and finding them by reading every count is the tedious part of
+              working the board. `forcedAction` is the engine's own test, so a blue row is
+              exactly a row the step it names will accept.
+            */}
+            {visibleFacts.map(fact => {
+              const forced = forcedAction(fact);
+              return (
               <div
                 key={fact.id}
-                className={`fact${fact.impossible ? ' impossible' : ''}`}
+                className={`fact${fact.impossible ? ' impossible' : ''}${forced ? ' forced' : ''}`}
                 draggable
-                title="Drag this hypothesis into the proof"
+                title={forced === 'stars' ? 'Forced: every cell holds a star — drag it into "place forced ★ in"'
+                  : forced === 'elims' ? 'Forced: no cell can hold a star — drag it into "cross out rest of"'
+                  : 'Drag this hypothesis into the proof'}
                 onPointerDown={event => event.stopPropagation()}
                 onMouseDown={event => event.stopPropagation()}
                 onClick={event => event.stopPropagation()}
@@ -417,7 +429,8 @@ function App() {
                 <span className="fact-eq">{factText(fact, puzzle.size)}</span>
                 {fact.impossible && <span>impossible!</span>}
               </div>
-            ))}
+              );
+            })}
             {/*
               Proven propositions, which are knowledge too.
               A claim whose conclusion is not a single count — `(not (and ...))` becomes an OR
@@ -456,7 +469,9 @@ function App() {
                       className={`fact supposition${sup.contradiction ? ' impossible' : ''}`}
                       key={sup.name}
                       title={sup.contradiction
-                        ? 'Its body reached a contradiction, so what it supposes is false'
+                        // Either its body reached a contradiction, or the board has since ruled
+                        // out something the body concluded. Both make the predicate false.
+                        ? 'Refuted: what it supposes cannot hold, so using it closes this branch'
                         : 'Use it once you have proved what it supposes'}
                     >
                       <span className="fact-name">{sup.name}</span>

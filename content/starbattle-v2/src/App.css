@@ -190,6 +190,11 @@
 .fact:active { cursor: grabbing; }
 .fact:hover { background: var(--accent-bg); }
 .fact.impossible { color: #e94560; font-weight: 600; }
+/* One step from progress: this hypothesis settles every cell it covers, so `place forced ★`
+   or `cross out rest of` takes it as it stands. Blue rather than the purple accent, which
+   marks hover and selection; it stays a text color so hovering still reads as hover. */
+.fact.forced,
+.fact.forced .fact-name { color: #2f7fe0; }
 .fact-name { margin-right: 7px; color: var(--text-h); cursor: text; white-space: nowrap; }
 .fact-eq { white-space: normal; overflow-wrap: break-word; }
 .fact-chip {
