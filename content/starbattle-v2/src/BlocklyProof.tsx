@@ -41,17 +41,19 @@ const PROOF_EVENT_TYPES = new Set<string>([
 ]);
 
 /**
- * A fact-reference dropdown that never rejects its stored value. Stock
- * `FieldDropdown` validates every `setValue` (including during workspace
- * deserialization) against its live `factOptions()` menu, which is scoped to
- * the block's position in the proof and depends on `context.results` — right
- * after a reload, results hasn't been recomputed yet, so a `define:<id>`
- * reference isn't in the menu, validation rejects it, and the value is
- * silently reset to blank. Accepting any value here keeps the reference
- * intact; the existing results-driven effect below already re-renders the
- * field's *display text* once evaluation catches up.
+ * A dropdown over things the proof itself creates, which never rejects its stored value.
+ * Stock `FieldDropdown` validates every `setValue` (including during workspace
+ * deserialization) against its live menu, and these menus are scoped to the block's
+ * position in the proof and read `context.results` — right after a reload, results hasn't
+ * been recomputed yet, so neither a `define:<id>` fact nor a supposition's name is in the
+ * menu, validation rejects it, and the value is silently reset to blank. Accepting any
+ * value here keeps the reference intact; the existing results-driven effect below already
+ * re-renders the field's *display text* once evaluation catches up.
+ *
+ * Cell dropdowns are deliberately not this: their options come from the board, which is
+ * known before the proof loads, so there stock validation is a real check.
  */
-class FactRefField extends Blockly.FieldDropdown {
+class StoredRefField extends Blockly.FieldDropdown {
   protected override doClassValidation_(newValue?: string): string | null {
     return newValue ?? null;
   }
@@ -359,7 +361,15 @@ function registerPasteText(): void {
 
 let registered = false;
 
-function registerBlocks() {
+/**
+ * Exported so a test can load a saved workspace headlessly: what a reload does to a stored
+ * proof is worth checking, and it needs the real block definitions and nothing else.
+ *
+ * The cost is one oxlint warning — a module exporting a non-component opts out of React Fast
+ * Refresh. Editing this file already forces a reload rather than a hot update, since Blockly
+ * throws on re-registering its menu items and shortcuts, so there is nothing left to lose.
+ */
+export function registerBlocks() {
   if (registered) return;
   registered = true;
 
@@ -566,7 +576,7 @@ function registerBlocks() {
   Blockly.Blocks.sb_use = {
     init() {
       this.appendDummyInput().appendField('use')
-        .appendField(new Blockly.FieldDropdown(suppositionOptions), 'NAME');
+        .appendField(new StoredRefField(suppositionOptions), 'NAME');
       // Optional, and only a count-form supposition needs it: `(is-star A1)` is visible on
       // the board, while a count is entailed, and the proof should say by what.
       this.appendValueInput('VIA').setCheck(['Hypothesis', 'HypothesisExpression'])
@@ -650,7 +660,7 @@ function registerBlocks() {
   };
   Blockly.Blocks.sb_fact = {
     init() {
-      this.appendDummyInput().appendField(new FactRefField(factOptions), 'FACT');
+      this.appendDummyInput().appendField(new StoredRefField(factOptions), 'FACT');
       this.setOutput(true, 'Hypothesis');
       this.setOutputShape(HYPOTHESIS_OUTPUT_SHAPE);
       this.setColour(55);
@@ -1802,8 +1812,12 @@ export const BlocklyProof = forwardRef<ProofWorkspaceHandle, ProofWorkspaceProps
     const workspace = workspaceRef.current;
     if (!workspace) return;
     for (const block of workspace.getAllBlocks(false)) {
-      if (block.type !== 'sb_fact') continue;
-      const field = block.getField('FACT');
+      // Both label themselves from names the proof creates, so their text can go stale
+      // without the block changing — a restored `use S` reads "S (unavailable)" until
+      // evaluation has run and put S back in scope.
+      const fieldName = block.type === 'sb_fact' ? 'FACT' : block.type === 'sb_use' ? 'NAME' : null;
+      if (!fieldName) continue;
+      const field = block.getField(fieldName);
       if (!(field instanceof Blockly.FieldDropdown)) continue;
       const text = field.getText();
       const previousText = factTextRef.current.get(field);

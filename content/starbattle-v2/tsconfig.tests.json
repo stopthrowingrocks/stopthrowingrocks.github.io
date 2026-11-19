@@ -1,0 +1,32 @@
+{
+  /*
+   * The tests have their own project because some of them exercise browser-side code: the
+   * stored-proof round trip loads a saved workspace with the real Blockly block definitions,
+   * which needs DOM types and JSX. The scripts project deliberately keeps `lib` free of DOM
+   * so a headless script cannot reach for an API Node does not have, and that stays true.
+   */
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "types": ["node", "vite/client"],
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+
+    /* Bundler mode (matches tsconfig.app.json; tests run under tsx, not vite) */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["tests"]
+}
