@@ -8,6 +8,7 @@ subtitle = "PUZZLE. Build a block-based proof that your Star Battle solution is 
 tab_title = "Star Battle — Proof Builder"
 +++
 
+<link rel="icon" type="image/svg+xml" href="build/favicon.svg">
 <link rel="stylesheet" href="build/index.css">
 <div id="root"></div>
 <script type="module" src="build/main.js"></script>
