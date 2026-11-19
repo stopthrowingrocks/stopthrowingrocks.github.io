@@ -109,6 +109,62 @@ const sameCells = (a: number[], b: number[]): boolean =>
  * value — either all cells resolved, or an `=` fact over the same cells states
  * exactly the forbidden count (the `exact hn h` pattern).
  */
+/**
+ * Fold what a supposition records against what the board has since learned.
+ *
+ * A record is a snapshot: "if `pred`, then these cells and these counts". The board outside
+ * keeps moving, and knowledge there is unconditional, so narrowing a conditional conclusion by
+ * it is sound and leaves the record saying only what is still news. Three things follow.
+ *
+ * A recorded cell the board now agrees with is dropped — `use` already skips those, so this
+ * only stops the record from claiming credit for them. A recorded count is folded exactly as
+ * `normalize` folds a live fact, since cells it was stated over have since settled. And a
+ * recorded cell the board now *disagrees* with settles the supposition: `pred` implies that
+ * cell, the board denies it, so `pred` is false — the same conclusion the body reaching a
+ * contradiction would have given, by modus tollens rather than by derivation.
+ *
+ * Nested records are folded too: they are conditional on this one, which does not exempt them
+ * from what the board knows.
+ */
+function foldSupposition(sup: Supposition, cells: CellK[]): Supposition {
+  let contradiction = sup.contradiction;
+  const recorded = sup.cells.map((want, i) => {
+    if (want === null) return null;
+    const known = cells[i];
+    if (known === null) return want;
+    if (known === want) return null;      // the board has caught up; nothing left to import
+    contradiction = true;                 // the board denies it, so `pred` cannot hold
+    return want;
+  });
+
+  const facts: Fact[] = [];
+  for (const f of sup.facts) {
+    let target = f.target;
+    const open: number[] = [];
+    for (const c of f.cells) {
+      const known = cells[c];
+      if (known === 'star') target--;
+      else if (known === null) open.push(c);
+    }
+    let keep = true;
+    switch (f.op) {
+      case '=': keep = target < 0 || target > open.length || open.length > 0; break;
+      case '<=': keep = target < 0 || (open.length > 0 && target < open.length); break;
+      case '>=': keep = target > open.length || target > 0; break;
+      case '!=': keep = !(target < 0 || target > open.length); break;
+    }
+    if (keep) facts.push({ ...f, cells: open, target });
+  }
+
+  return {
+    ...sup,
+    cells: recorded,
+    facts,
+    contradiction,
+    suppositions: sup.suppositions.map(inner => foldSupposition(inner, cells)),
+  };
+}
+
 function normalize(s: PState): void {
   const kept: Fact[] = [];
   for (const f of s.facts) {
@@ -154,6 +210,10 @@ function normalize(s: PState): void {
     }
   }
   s.facts = kept;
+  // The records in scope are folded against the same board, so what they offer stays current.
+  if (s.suppositions.length) {
+    s.suppositions = s.suppositions.map(sup => foldSupposition(sup, s.cells));
+  }
 }
 
 function applyStars(s: PState, puzzle: Puzzle, factId: string | null): { error?: string; note?: string } {

@@ -374,3 +374,39 @@ test('a use with a hypothesis round-trips through the text format', () => {
   assert.match(printed, /clm0_2>=1/, printed);
   assert.equal(printProof(parseProof(printed, P), P).trim(), printed.trim());
 });
+
+/*
+ * A record is a snapshot, and the board keeps moving. Knowledge outside a supposition is
+ * unconditional, so narrowing the record by it is sound and keeps it saying only what is
+ * still news.
+ */
+test('a supposition stops claiming a cell the board has caught up on', () => {
+  const alone = run(`(suppose S (is-star A1) (claim (is-elim C3) (sorry)))`);
+  const held = (r: ReturnType<typeof run>) =>
+    r.final.suppositions[0].cells.filter(cell => cell !== null).length;
+  const after = run(`
+    (suppose S (is-star A1) (claim (is-elim C3) (sorry)))
+    (claim (is-elim C3) (sorry))
+  `);
+  assert.ok(held(after) < held(alone),
+    `the record should shrink once C3 is known outside: ${held(alone)} -> ${held(after)}`);
+});
+
+test('a supposition the board contradicts becomes impossible', () => {
+  // S supposes A1 is a star; proving it eliminated settles the supposition by modus tollens,
+  // without its body ever deriving anything.
+  const { results, final } = run(`
+    (suppose S (is-star A1) (claim (is-elim C3) (sorry)))
+    (claim (is-elim A1) (sorry))
+  `);
+  assert.ok(!statuses(results).some(st => st.startsWith('error')), statuses(results).join(' / '));
+  assert.equal(final.suppositions[0].contradiction, true,
+    'the board denies what S supposes, so S cannot hold');
+});
+
+test('folding a record does not touch a cell the board has not settled', () => {
+  const { final } = run(`(suppose S (is-star A1) (claim (is-elim C3) (sorry)))`);
+  const sup = final.suppositions[0];
+  assert.equal(sup.contradiction, false, 'nothing outside denies it yet');
+  assert.ok(sup.cells.some(cell => cell !== null), 'it still has something to offer');
+});
