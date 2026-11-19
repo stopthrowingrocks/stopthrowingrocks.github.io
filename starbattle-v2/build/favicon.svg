@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Star Battle">
+  <title>Star Battle</title>
+  <!--
+    One region cell holding its star. The fill is REGION_COLORS[1] — the colour the board
+    paints the region the proof language calls `region2`, since `lineId` names index i as
+    `region<i+1>`. The ink matches the ★ the board draws in a cell.
+
+    The star is a path rather than the ★ glyph on purpose: a glyph renders in whatever font
+    the browser picks for an SVG, which at 16px is the difference between a star and a blob.
+    Ten points, outer radius 11 and inner 4.3 about (16,16), starting at the top.
+  -->
+  <rect width="32" height="32" rx="6" fill="#A0C4E8"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="5.5" fill="none" stroke="#5b6b7d" stroke-opacity="0.35"/>
+  <path fill="#111"
+        d="M16 5 L18.53 12.52 L26.46 12.60 L20.09 17.33 L22.47 24.90
+           L16 20.30 L9.53 24.90 L11.91 17.33 L5.54 12.60 L13.47 12.52 Z"/>
+</svg>
