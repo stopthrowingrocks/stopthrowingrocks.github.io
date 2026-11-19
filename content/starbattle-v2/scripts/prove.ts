@@ -7,6 +7,7 @@
  *
  * Options: --max-ceiling N   dearest statement to consider (default 6)
  *          --case-ceiling N  dearest statement inside a case argument (default 4)
+ *          --beam N          signed partial combinations kept per round (default 24)
  *          --no-cases        arithmetic only
  *          --time MS         per puzzle
  *          --verbose         narrate each statement as it lands
@@ -54,12 +55,28 @@ function run(index: number, quiet: boolean): { solved: boolean; cost: number; st
     maxCeiling: num('max-ceiling', 6),
     caseCeiling: num('case-ceiling', 4),
     noCases: args.includes('--no-cases'),
+    // Signed elimination prunes to this many partial combinations per round, so it bounds
+    // which combinations exist to be priced at all — a separate limit from the ceiling, and
+    // the one that decides whether a deep multi-line cancellation is ever reached.
+    beamWidth: num('beam', 24),
+    // States explored inside a by-contradiction body. Defaults to 30 and nothing in the
+    // repo ever set it, so every case argument so far has been given 30 states to find a
+    // contradiction in — enough on a 5x5, nothing like enough on a 14x14.
+    contradictionBodyNodes: num('body-nodes', 30),
     timeLimitMs: num('time', 600000),
     onProgress: args.includes('--verbose') && !quiet ? note => console.log(`   ${note}`) : undefined,
   });
   if (!result.solved) {
     const proven = result.state.cells.filter(c => c !== null).length;
-    return { solved: false, cost: result.cost, steps: result.blocks.length, ms: result.ms,
+    // Saturation still found real statements before it stalled; keep them. The
+    // board is unsolved, so `trim` does not apply — its invariant is "comes out
+    // solved" — and `prune-partial.ts` is the tool that trims these instead.
+    if (result.blocks.length) {
+      const text = printProof(result.blocks, puzzle);
+      if (outDir) writeFileSync(join(outDir, `partial-${index}.lisp`), `${text}\n`, 'utf8');
+      if (!quiet) console.log(`\n${text}\n`);
+    }
+    return { solved: false, cost: result.cost, steps: allStatements(result.blocks).length, ms: result.ms,
       note: `stuck at ${proven}/${puzzle.size ** 2} cells` };
   }
   const trimmed = trim(puzzle, result.blocks);
