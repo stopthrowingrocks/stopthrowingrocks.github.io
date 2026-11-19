@@ -16,8 +16,9 @@
  *          --time MS         per puzzle
  *          --verbose         narrate each statement as it lands
  *          --out DIR         write each proof found to DIR/proof-<index>.lisp
+ *          --levels FILE     read the boards from FILE instead of src/levels.json
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { evaluate, initState, isSolved } from '../src/engine';
 import { printProof } from '../src/proofText';
@@ -26,7 +27,7 @@ import { runProof } from '../src/agentTool';
 import { boardAdvancingMoves, forcedMoves, proofCost, splitMoves } from '../src/search';
 import { allStatements, prove, prune } from '../src/saturate';
 import levelsData from '../src/levels.json';
-import type { Block, Puzzle } from '../src/types';
+import type { Block, Puzzle, RawLevel } from '../src/types';
 
 const args = process.argv.slice(2);
 const target = args[0];
@@ -49,7 +50,11 @@ const bodyGenerators = (() => {
   }
 })();
 
-const puzzles: Puzzle[] = parseLevels(levelsData);
+// `--levels` reads a board set from elsewhere, so a scratch file does not have to be
+// spliced into the shipped list to be proved against.
+const levelsFile = flag('levels');
+const puzzles: Puzzle[] = parseLevels(
+  levelsFile ? (JSON.parse(readFileSync(levelsFile, 'utf8')) as RawLevel[]) : levelsData);
 const outDir = flag('out');
 if (outDir) mkdirSync(outDir, { recursive: true });
 

@@ -1,4 +1,4 @@
-import type { Block, BlockResult, BlockStatus, BoolExpr, CmpExpr, CmpOp, Fact, FactOp, HypExpr, NumExpr, PState, Puzzle, Supposition } from './types';
+import type { Block, BlockResult, BlockStatus, BoolExpr, CellK, CmpExpr, CmpOp, Fact, FactOp, HypExpr, NumExpr, PState, Puzzle, Supposition } from './types';
 import { factName, lineId, lineIndices, lineMembers, neighbors, posLabel } from './puzzles';
 
 /** Fresh state with every row/column/region count fact pre-expanded. */

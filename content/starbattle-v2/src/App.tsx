@@ -1,13 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Block, Fact, HypExpr, PState, Puzzle } from './types';
+import type { Block, Fact, HypExpr, PState, Puzzle, RawLevel } from './types';
 import { parseLevels, groupPuzzles, factName, posLabel, REGION_COLORS } from './puzzles';
 import { childContainers, containsSorry, evaluate, hypothesisForm, isSolved, opSymbol, predicateText } from './engine';
 import { Board, type Coverage } from './Board';
 import { BlocklyProof, type ProofWorkspaceHandle } from './BlocklyProof';
 import levelsData from './levels.json';
+import testLevels from './test-levels.json';
 import './App.css';
 
-const allPuzzles = parseLevels(levelsData);
+/*
+ * Test boards join the list while developing and never ship. `import.meta.env.DEV` is a
+ * literal in a build, so the branch folds away and `test-levels.json` is dropped entirely
+ * — which is what makes it safe to keep scratch puzzles there instead of splicing them into
+ * the shipped list and having to remember to take them out again.
+ */
+const allLevels = import.meta.env.DEV
+  ? [...(levelsData as RawLevel[]), ...(testLevels as RawLevel[])]
+  : (levelsData as RawLevel[]);
+const allPuzzles = parseLevels(allLevels);
 const groups = groupPuzzles(allPuzzles);
 
 function factText(fact: Fact, size: number): string {
