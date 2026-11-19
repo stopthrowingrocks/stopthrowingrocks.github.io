@@ -22,7 +22,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { assume, evaluate } from '../src/engine';
 import { parseProof, printProof } from '../src/proofText';
 import { cellLabelToIndex, parseLevels, posLabel } from '../src/puzzles';
-import { boardAdvancingMoves, contradictionMoves, forcedMoves, search, statementCost } from '../src/search';
+import { boardAdvancingMoves, contradictionMoves, forcedMoves, search, splitMoves, statementCost } from '../src/search';
+import { signedMoves } from '../src/signed';
 import levelsData from '../src/levels.json';
 import type { Block, BoolExpr, Puzzle } from '../src/types';
 
@@ -91,8 +92,17 @@ for (const cell of targets) {
   // search over the full generator set finds none.
   const ladder = [
     [forcedMoves],
-    [forcedMoves, boardAdvancingMoves],
-    [forcedMoves, boardAdvancingMoves, contradictionMoves],
+    // Pigeonhole over a clique partition is the shape a refutation usually needs: assume the
+    // star, then show the stars left over cannot fit beside it. Nothing reaches it through
+    // forced moves, so a body without `splitMoves` cannot make the argument at any budget.
+    [forcedMoves, splitMoves],
+    // Signed elimination, which is what `levelMoves` reaches for and this ladder was missing.
+    // It cancels facts against each other across lines and regions, so it is the only rung
+    // that can refute a cell whose contradiction lives in several lines at once rather than
+    // in the cells around it.
+    [forcedMoves, signedMoves, splitMoves],
+    [forcedMoves, signedMoves, boardAdvancingMoves, splitMoves],
+    [forcedMoves, signedMoves, boardAdvancingMoves, splitMoves, contradictionMoves],
   ];
   const started = Date.now();
   let result: ReturnType<typeof search> | null = null;
@@ -110,8 +120,13 @@ for (const cell of targets) {
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   if (!result?.found) { console.log(`${label.padEnd(4)} no contradiction ${secs}s`); continue; }
 
+  /*
+   * No impossible fact does not mean no contradiction. A refutation can land in the cells —
+   * a star forced next to a star, say — and then there is nothing for a `via` to name, which
+   * a by-contradiction now accepts. Discarding these threw away real refutations: the first
+   * cell this tool ever refuted on a 14x14 was discarded exactly here.
+   */
   const broken = result.best.facts.find(f => f.impossible);
-  if (!broken) { console.log(`${label.padEnd(4)} contradicted but no hypothesis to name ${secs}s`); continue; }
 
   const claim: Block = {
     id: `cb-${cell}`,
@@ -121,7 +136,7 @@ for (const cell of targets) {
       id: `cb-bc-${cell}`,
       type: 'by_contradiction',
       body: result.blocks,
-      contradiction: { eid: `v${cell}`, kind: 'ref', factId: broken.id },
+      contradiction: broken ? { eid: `v${cell}`, kind: 'ref', factId: broken.id } : null,
     }],
   };
   found.push(claim);
