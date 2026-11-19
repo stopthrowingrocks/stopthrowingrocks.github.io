@@ -493,9 +493,15 @@ export const contradictionMoves: MoveGenerator = (puzzle, state, options) => {
         body = inner.blocks;
         end = inner.best;
       }
-      // `via` has to name the hypothesis that broke; without one there is nothing to point at.
+      /*
+       * A refutation can close in the cells rather than in a count — a star forced beside a
+       * star, or onto one already crossed out — and then no hypothesis is impossible and there
+       * is nothing for a `via` to name. A by-contradiction accepts that now, so these are kept
+       * rather than thrown away. They are not a curiosity: the first cell a refutation settled
+       * on 14x14 Hard #1 closed exactly this way, and requiring a named hypothesis discarded it.
+       */
       const broken = end.facts.find(fact => fact.impossible);
-      if (!broken) continue;
+      if (!broken && !end.contradiction) continue;
 
       const block: Block = {
         id: blockId(),
@@ -505,7 +511,7 @@ export const contradictionMoves: MoveGenerator = (puzzle, state, options) => {
           id: blockId(),
           type: 'by_contradiction',
           body,
-          contradiction: { eid: exprId(), kind: 'ref', factId: broken.id },
+          contradiction: broken ? { eid: exprId(), kind: 'ref', factId: broken.id } : null,
         }],
       };
       const step = applyStep(puzzle, state, block);

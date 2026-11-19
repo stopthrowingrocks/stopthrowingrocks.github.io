@@ -16,7 +16,7 @@ import { evaluate, isSolved } from '../src/engine';
 import { parseProof, printProof } from '../src/proofText';
 import { parseLevels } from '../src/puzzles';
 import { runProof } from '../src/agentTool';
-import { proofCost } from '../src/search';
+import { boardAdvancingMoves, forcedMoves, proofCost, splitMoves } from '../src/search';
 import { allStatements, prove, prune } from '../src/saturate';
 import levelsData from '../src/levels.json';
 import type { Block, Puzzle } from '../src/types';
@@ -47,10 +47,24 @@ const total = puzzle.size ** 2;
 console.log(`${puzzle.name} #${puzzle.categoryIndex}: resuming from ${allStatements(prefix).length}`
   + ` statement(s), ${settledBefore}/${total} cells settled`);
 
+/** Same knob as prove.ts: what a by-contradiction body is allowed to argue with. */
+const bodyGenerators = (() => {
+  switch (str('body-generators')) {
+    case 'split': return [forcedMoves, splitMoves];
+    case 'full': return [forcedMoves, boardAdvancingMoves, splitMoves];
+    default: return undefined;
+  }
+})();
+
 const result = prove(puzzle, before.final, {
   maxCeiling: num('max-ceiling', 6),
   caseCeiling: num('case-ceiling', 4),
   noCases: args.includes('--no-cases'),
+    forgetAllCases: args.includes('--forget-all'),
+    caseDepth: num('case-depth', 1),
+  beamWidth: num('beam', 24),
+  contradictionBodyNodes: num('body-nodes', 30),
+  contradictionBodyGenerators: bodyGenerators,
   timeLimitMs: num('time', 600000),
   onProgress: args.includes('--verbose') ? note => console.log(`   ${note}`) : undefined,
 });

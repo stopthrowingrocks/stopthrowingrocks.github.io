@@ -8,6 +8,10 @@
  * Options: --max-ceiling N   dearest statement to consider (default 6)
  *          --case-ceiling N  dearest statement inside a case argument (default 4)
  *          --beam N          signed partial combinations kept per round (default 24)
+ *          --body-nodes N    states a by-contradiction body may explore (default 30)
+ *          --body-generators forced | split | full — what a body may argue with.
+ *                            "forced" is the built-in default and cannot reach a pigeonhole,
+ *                            which is the shape most refutations need
  *          --no-cases        arithmetic only
  *          --time MS         per puzzle
  *          --verbose         narrate each statement as it lands
@@ -19,7 +23,7 @@ import { evaluate, initState, isSolved } from '../src/engine';
 import { printProof } from '../src/proofText';
 import { parseLevels } from '../src/puzzles';
 import { runProof } from '../src/agentTool';
-import { proofCost } from '../src/search';
+import { boardAdvancingMoves, forcedMoves, proofCost, splitMoves } from '../src/search';
 import { allStatements, prove, prune } from '../src/saturate';
 import levelsData from '../src/levels.json';
 import type { Block, Puzzle } from '../src/types';
@@ -35,6 +39,15 @@ const flag = (name: string) => {
   return at === -1 ? undefined : args[at + 1];
 };
 const num = (name: string, fallback: number) => Number(flag(name) ?? fallback);
+
+/** Richer body arguments, off by default so the change is measured rather than assumed. */
+const bodyGenerators = (() => {
+  switch (flag('body-generators')) {
+    case 'split': return [forcedMoves, splitMoves];
+    case 'full': return [forcedMoves, boardAdvancingMoves, splitMoves];
+    default: return undefined;
+  }
+})();
 
 const puzzles: Puzzle[] = parseLevels(levelsData);
 const outDir = flag('out');
@@ -55,6 +68,8 @@ function run(index: number, quiet: boolean): { solved: boolean; cost: number; st
     maxCeiling: num('max-ceiling', 6),
     caseCeiling: num('case-ceiling', 4),
     noCases: args.includes('--no-cases'),
+    forgetAllCases: args.includes('--forget-all'),
+    caseDepth: num('case-depth', 1),
     // Signed elimination prunes to this many partial combinations per round, so it bounds
     // which combinations exist to be priced at all — a separate limit from the ceiling, and
     // the one that decides whether a deep multi-line cancellation is ever reached.
@@ -63,6 +78,11 @@ function run(index: number, quiet: boolean): { solved: boolean; cost: number; st
     // repo ever set it, so every case argument so far has been given 30 states to find a
     // contradiction in — enough on a 5x5, nothing like enough on a 14x14.
     contradictionBodyNodes: num('body-nodes', 30),
+    // What a by-contradiction body may argue with. `contradictionMoves` defaults to forced
+    // moves alone, which cannot reach a pigeonhole over a clique partition — and that is the
+    // shape a refutation usually takes: assume the star, then show the stars left over do not
+    // fit beside it. Left undefined here so the built-in default still applies unless asked.
+    contradictionBodyGenerators: bodyGenerators,
     timeLimitMs: num('time', 600000),
     onProgress: args.includes('--verbose') && !quiet ? note => console.log(`   ${note}`) : undefined,
   });

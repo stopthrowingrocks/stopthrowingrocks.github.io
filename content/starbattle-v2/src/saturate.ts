@@ -50,6 +50,23 @@ export interface SaturateOptions extends SearchOptions {
    * chooses.
    */
   greedy?: boolean;
+  /**
+   * After a case argument lands, forget every cell written off rather than only the ones the
+   * new information touched.
+   *
+   * `forgetAround` keeps the saving the write-off exists for, and on a board where arguments
+   * are scarce that saving is the difference between 18s and 886s. But it assumes a refused
+   * cell stays refused unless something near it moved, and that is not true once arguments
+   * start landing: restarting a stalled 14x14 run gains a cell for no reason but an empty
+   * map, which is a gain `forgetAround` leaves on the table. Off by default, because the
+   * re-asking is only worth its cost where arguments actually pay.
+   */
+  forgetAllCases?: boolean;
+  /**
+   * How many levels of case argument may nest. 1 means a refutation body does arithmetic
+   * only, which is what `noCases` enforced unconditionally and is still the default.
+   */
+  caseDepth?: number;
   /** States to explore inside a case split before abandoning it. */
   caseCeiling?: number;
   /** Give up on case analysis entirely. */
@@ -221,7 +238,8 @@ export function saturate(
       const step = applyStep(puzzle, state, argument.block);
       if (step.status === 'ok' && gainsGround(state, step.state)) {
         blocks.push(argument.block);
-        forgetAround(state, step.state, cases!.attempted);
+        if (options.forgetAllCases) cases!.attempted.clear();
+        else forgetAround(state, step.state, cases!.attempted);
         state = step.state;
         cases!.pending = null;
         cases!.argued += 1;
@@ -249,7 +267,8 @@ export function saturate(
         return { blocks, state, stuckAt: maxCeiling, peakLevel, cases: (cases?.argued ?? 0) - argued0 };
       }
       blocks.push(last.block);
-      forgetAround(state, step.state, cases!.attempted);
+      if (options.forgetAllCases) cases!.attempted.clear();
+        else forgetAround(state, step.state, cases!.attempted);
       state = step.state;
       cases!.pending = null;
       cases!.argued += 1;
@@ -457,12 +476,41 @@ export function findCase(
         // to do with the three its claim costs to write.
         tally(options.probe, 'contradiction', Math.max(1, opened.state.facts.length));
 
-        const inner = saturate(puzzle, opened.state, s => s.contradiction,
-          { ...options, maxCeiling: ceiling, noCases: true, timeLimitMs: 15000 });
+        // `onProgress` is dropped: this searches an assumed board, where the assumption plus
+        // propagation settles far more cells than the real one has. Reported alongside the
+        // main sweep's counts it reads as progress that has not happened — which is exactly
+        // how a 24-cell run came to look like a 44-cell one.
+        /*
+         * `noCases` caps case arguments at depth 1: a refutation body may do arithmetic but
+         * may not argue a sub-case, so "if this cell is a star, the one next to it is forced
+         * here or there, and both fail" is unstatable however much budget it is given. Depth
+         * is now a budget of its own, spent one level at a time, and still 1 by default —
+         * each extra level multiplies the cells-times-cells searching that makes this the
+         * dearest tool in the set.
+         */
+        const depth = options.caseDepth ?? 1;
+        const inner = saturate(puzzle, opened.state, s => s.contradiction, {
+          ...options,
+          onProgress: undefined,
+          maxCeiling: ceiling,
+          noCases: depth <= 1,
+          caseDepth: depth - 1,
+          // An inner level argues one price cheaper than the level above, rather than being
+          // pinned at the floor: a sub-argument capped at 2 can barely buy anything, which
+          // makes the extra depth look useless when it is only underfunded.
+          caseCeiling: Math.max(1, (options.caseCeiling ?? 4) - 1),
+          timeLimitMs: 15000,
+        });
         attempted.set(asked, ceiling);
         if (!inner.state.contradiction) continue;
+        /*
+         * The body is contradictory — checked just above — but the contradiction may live in
+         * the cells rather than in a count: a star forced beside a star, or onto one already
+         * crossed out. Then no hypothesis is impossible and there is nothing for a `via` to
+         * name, which a by-contradiction accepts now. Requiring a named hypothesis here threw
+         * these arguments away, and on 14x14 Hard #1 they are the ones that get past the wall.
+         */
         const broken = inner.state.facts.find(fact => fact.impossible);
-        if (!broken) continue;
 
         const block: Block = {
           id: `case-${cell}-${kind}`,
@@ -472,7 +520,7 @@ export function findCase(
             id: `case-bc-${cell}`,
             type: 'by_contradiction',
             body: inner.blocks,
-            contradiction: { eid: `v${cell}`, kind: 'ref', factId: broken.id },
+            contradiction: broken ? { eid: `v${cell}`, kind: 'ref', factId: broken.id } : null,
           }],
         };
         const step = applyStep(puzzle, state, block);
