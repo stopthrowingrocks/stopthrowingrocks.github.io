@@ -288,3 +288,19 @@
   cursor: default;
   color: var(--text-h);
 }
+
+/* Suppositions in scope: knowledge the board cannot show, since they assert nothing.
+   Separated like the propositions above, and not draggable for the same reason. */
+.suppositions {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line, #d7d7de);
+}
+.fact.supposition {
+  cursor: default;
+}
+.sup-note {
+  margin-left: 6px;
+  opacity: 0.7;
+  font-style: italic;
+}

@@ -441,6 +441,41 @@ function App() {
               </div>
             )}
             {/*
+              Suppositions in scope. They assert nothing, which is exactly why they are worth
+              listing: the board does not show them, so without this the only trace of one is
+              the `suppose` block itself, and `use` offers a name with nothing to read it
+              against. Each row says what was supposed and what discharging it would buy —
+              either the cells it would settle here, or that its body died, which makes the
+              supposition's predicate false rather than useful. Not draggable: `use` takes a
+              name from a dropdown, not a hypothesis.
+            */}
+            {displayState.suppositions.length > 0 && (
+              <div className="suppositions">
+                <div className="facts-title"><span>Suppositions</span></div>
+                {displayState.suppositions.map(sup => {
+                  const gain = sup.cells.filter(
+                    (cell, i) => cell !== null && displayState.cells[i] === null).length;
+                  return (
+                    <div
+                      className={`fact supposition${sup.contradiction ? ' impossible' : ''}`}
+                      key={sup.name}
+                      title={sup.contradiction
+                        ? 'Its body reached a contradiction, so what it supposes is false'
+                        : 'Use it once you have proved what it supposes'}
+                    >
+                      <span className="fact-name">{sup.name}</span>
+                      <span className="fact-eq">{predicateText(sup.pred, puzzle)}</span>
+                      <span className="sup-note">
+                        {sup.contradiction
+                          ? 'impossible'
+                          : `${gain} cell${gain === 1 ? '' : 's'}`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/*
               Inside the scrolling facts list rather than beside it: what a step is working
               under belongs with what it knows, and reads at the end of that list.
             */}
