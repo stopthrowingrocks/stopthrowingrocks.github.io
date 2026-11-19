@@ -155,7 +155,7 @@
             (stars region11)
             (elims row8)
             (split row9 _ (clique A9 B9) (clique D9) (clique K9 L9))
-            (stars row9-2)
+            (stars region7-3)
             (split row7 _ (clique A7 B7) (clique C7 D7) (clique K7 L7))
             (elims (- (clique K6 L6 K7 L7) row7-3))
             (elims (- (clique A11 B11 A12 B12) row11))
@@ -169,7 +169,7 @@
             (stars "rows 12,13-1")
             (elims row10)
             (split region8 _ (clique I5 J5 I6 J6) (clique K7) (clique K9 L9))
-            (elims (- region9 (- row9 region8-3)))
+            (elims (- region9 (- row9 row9-3)))
             (stars row11)
             (elims region13)
           )
@@ -511,11 +511,11 @@
       (elims region11)
       (stars (- row9 (clique A9 B9)))
       (split region9 _ (- (+ row11 row13) region13) (clique A9 B9) (clique B7 C7 B8))
-      (elims (- (clique A8 B8 A9 B9) region9-2))
+      (elims (- (clique A8 B8 A9 B9) row9))
       (stars row8)
       (split row7 _ (clique A7) region9-3 (clique I7 J7))
       (stars row7-1)
-      (stars row7-2)
+      (stars region9-3)
       (stars "clm73_74!=0")
     )
     (via (- colF (clique F1 F2)))
@@ -612,7 +612,7 @@
 
 (stars region7)
 
-(stars region9-1)
+(stars row11)
 
 (elims (- colA (- region6 colC)))
 

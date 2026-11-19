@@ -113,6 +113,9 @@ function setElim(s: PState, idx: number): void {
   s.cells[idx] = 'elim';
 }
 
+/** Cell lists in a canonical order, so `sameCells` compares content and not sequence. */
+const sorted = (cells: number[]): number[] => [...cells].sort((a, b) => a - b);
+
 const sameCells = (a: number[], b: number[]): boolean =>
   a.length === b.length && a.every((v, i) => v === b[i]);
 
@@ -617,24 +620,40 @@ function applySplit(
   }
   dropTemporaries();
   /*
-   * Every part gets its own fact, including one written as a bare reference to a hypothesis
-   * that already says the same thing.
+   * A part that says exactly what a hypothesis already says gets no second name.
    *
-   * Suppressing those looked like tidying -- one hypothesis should not have two names -- but
-   * splitting on a known hypothesis and then naming the part by position is how these proofs
-   * are actually written, so it silently broke proofs that used it. Removing the duplicate
-   * properly means making the part's name an alias for the existing fact, not dropping it.
+   * The split's conclusion is that each part is exactly tight. Where a part was written as a
+   * `<=` bound that is news, and the result is pushed. Where it was a bare reference to a
+   * fact that is already `=` over the same cells with the same target, the conclusion is
+   * something the state holds already, and pushing it puts one assertion in the pool twice
+   * under two names.
+   *
+   * This was tried once before and reverted, because it silently broke proofs that split on a
+   * known hypothesis and then referred to the part by position. The breakage is accepted now
+   * and such proofs are rewritten to name the hypothesis they already had -- but note what the
+   * cost actually is: the position name never comes into being, so `(elims sp-1)` has to become
+   * `(elims region5)`. Keeping both would mean an alias from the position name to the existing
+   * fact, resolved wherever a reference is looked up.
    */
+  const already = (result: { cells: number[]; target: number }) => s.facts.find(fact =>
+    fact.op === '=' && !fact.impossible && fact.target === result.target
+    && sameCells(sorted(fact.cells), sorted(result.cells)));
+
+  const notes: string[] = [];
   for (const result of results) {
+    const held = already(result);
+    if (held) {
+      notes.push(`${result.label} is ${factName(held)}, already known`);
+      continue;
+    }
     s.facts.push({
       id: result.id, kind: 'derived', index: 0, label: result.label,
       op: '=', cells: result.cells, target: result.target, impossible: false,
     });
+    notes.push(`${result.label}: ★{${listed(result.cells)}} = ${result.target}`);
   }
   normalize(s);
-  return {
-    note: results.map(result => `${result.label}: ★{${listed(result.cells)}} = ${result.target}`).join('; '),
-  };
+  return { note: notes.join('; ') };
 }
 
 function applyHypExpression(

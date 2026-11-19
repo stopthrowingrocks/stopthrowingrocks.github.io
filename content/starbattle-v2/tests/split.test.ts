@@ -203,11 +203,48 @@ test('a region becomes splittable once the board evolves', () => {
  * Suppressing it as a duplicate broke real proofs: splitting on a known hypothesis and then
  * naming the part by position is how these are written, and 14x14 Hard #15 does it four times.
  */
-test('a split emits a fact for every part, references included', () => {
+/*
+ * A part that says exactly what a hypothesis already says gets no second name.
+ *
+ * The split concludes that each part is exactly tight. Where the part was a `<=` bound that
+ * is news and the result is kept; where it was a reference to a fact already `=` over the
+ * same cells with the same target, the conclusion is held already, and keeping it would put
+ * one assertion in the pool twice under two names.
+ *
+ * The cost is that the positional name never exists, so a proof referring to it has to name
+ * the hypothesis instead. Both hand proofs of 14x14 Hard #15 did refer to one, and both were
+ * rewritten; `scripts/rewrite-split-aliases.ts` reads the pairing out of the split's own note.
+ */
+test('a split does not re-create a hypothesis a part already states', () => {
   const { outcomes, final } = run(EXACT, '(split (+ colA colB) pair colA colB)');
   assert.equal(outcomes[0].startsWith('ok'), true, outcomes[0]);
-  assert.ok(fact(final, 'pair-1'), 'the part is referable by its positional name');
-  assert.ok(fact(final, 'pair-2'));
-  assert.ok(fact(final, 'colA'), 'and the hypothesis it was written as survives');
+  assert.equal(fact(final, 'pair-1'), undefined, 'colA already says it, so no second name');
+  assert.equal(fact(final, 'pair-2'), undefined);
+  assert.ok(fact(final, 'colA'), 'the hypothesis it was written as is the one that survives');
+  assert.ok(fact(final, 'colB'));
+  assert.match(outcomes[0], /already known/, outcomes[0]);
+});
+
+test('a part referring to an upper bound still gets its exact count', () => {
+  /*
+   * Only an equality is already the split's conclusion. A hypothesis bounding its cells at one
+   * does not say they hold one, so concluding that they do is news and keeps its own name --
+   * the suppression is about not saying the same thing twice, not about reference parts.
+   */
+  const { outcomes, final } = run(EXACT, `
+    (define c (clique E10 F10))
+    (split region10 p c (clique G10 H10))
+  `);
+  assert.equal(outcomes.at(-1)?.startsWith('ok'), true, outcomes.at(-1));
+  assert.equal(shape(fact(final, 'c')), '<= 1 over 2 cells', 'the bound is untouched');
+  assert.equal(shape(fact(final, 'p-1')), '= 1 over 2 cells', 'and the exact count is new');
+});
+
+test('a split still emits a part that states something new', () => {
+  // A clique bounds its cells at one; concluding they hold exactly one is news, so it is kept.
+  const { outcomes, final } = run(EXACT, SPLIT_EXACT);
+  assert.equal(outcomes.at(-1)?.startsWith('ok'), true, outcomes.at(-1));
+  assert.equal(shape(fact(final, 'region10-1')), '= 1 over 2 cells');
+  assert.equal(shape(fact(final, 'region10-2')), '= 1 over 2 cells');
 });
 
