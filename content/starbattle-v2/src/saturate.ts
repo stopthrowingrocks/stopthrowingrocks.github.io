@@ -191,6 +191,15 @@ export function saturate(
       const step = applyStep(puzzle, state, move.block);
       if (step.status !== 'ok' || !gainsGround(state, step.state)) continue;
       blocks.push(move.block);
+      /*
+       * Arithmetic settles cells too, and `forgetAround`'s reason applies to it exactly as it
+       * does to an argument: what is provable around a cell changes when the cell next to it
+       * resolves. Without this the write-off from a failed argument outlives the board state
+       * it was judged against — a cell asked at level 2 and refused stays refused however much
+       * arithmetic lands beside it afterwards. Measured as a restart gaining a cell for nothing
+       * but an empty map; this is that gain without the restart.
+       */
+      if (cases) forgetAround(state, step.state, cases.attempted);
       state = step.state;
       advanced = true;
       peakLevel = Math.max(peakLevel, level);
