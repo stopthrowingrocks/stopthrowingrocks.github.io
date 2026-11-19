@@ -317,7 +317,17 @@ function App() {
           {!solved && admitted && (
             <div className="banner admitted">This proof admits a step with sorry.</div>
           )}
-          {evaluation.final.contradiction && !selected && <div className="banner contra">The proof state is contradictory.</div>}
+          {/*
+            Read from the board actually on screen, not from the proof's end state. Selecting
+            a step shows that step's state, and a contradictory one is the whole point of a
+            `suppose` body or a by-contradiction arm — so it is worth saying which board is
+            the contradictory one rather than going quiet as soon as anything is selected.
+          */}
+          {displayState.contradiction && (
+            <div className="banner contra">
+              {selected ? "This step's state is contradictory." : 'The proof state is contradictory.'}
+            </div>
+          )}
           {searchActive
             ? <div className="pick-hint">Hypothesis search — click board cells to filter ({searchCells.length} selected)</div>
             : coverageNote
@@ -412,6 +422,24 @@ function App() {
                 {fact.impossible && <span>impossible!</span>}
               </div>
             ))}
+            {/*
+              Proven propositions, which are knowledge too.
+              A claim whose conclusion is not a single count — `(not (and ...))` becomes an OR
+              under De Morgan — cannot become a `Fact`, so the engine records it in
+              `propositions` instead. Nothing rendered that list, so proving one looked like it
+              produced nothing at all. They are not draggable: there is no hypothesis slot that
+              takes a proposition, and `or-elim` reaches them by predicate rather than by name.
+            */}
+            {displayState.propositions.length > 0 && (
+              <div className="propositions">
+                <div className="facts-title"><span>Proven propositions</span></div>
+                {displayState.propositions.map((prop, i) => (
+                  <div className="fact proposition" key={`${i}-${prop.eid}`}>
+                    <span className="fact-eq">{predicateText(prop, puzzle)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {/*
               Inside the scrolling facts list rather than beside it: what a step is working
               under belongs with what it knows, and reads at the end of that list.

@@ -276,3 +276,15 @@
 /* An assumption is the one thing here that is not known to be true. */
 .context-row.assumed .context-val { color: #c2185b; }
 .context-row.none .context-val { opacity: 0.55; font-family: inherit; }
+
+/* Proven propositions sit under the facts they are not: separated like `.context`, because
+   they are a different kind of knowledge, and not draggable, so no grab affordance. */
+.propositions {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line, #d7d7de);
+}
+.fact.proposition {
+  cursor: default;
+  color: var(--text-h);
+}

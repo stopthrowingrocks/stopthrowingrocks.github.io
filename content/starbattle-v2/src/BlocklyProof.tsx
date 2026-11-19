@@ -895,6 +895,18 @@ function factExpression(block: Blockly.Block | null, puzzle: Puzzle): HypExpr | 
       target: Math.max(0, Math.floor(Number(block.getFieldValue('TARGET')) || 0)),
     };
   }
+  /*
+   * A statement that carries a hypothesis reports the one it carries. Only expression blocks
+   * were recognised above, so focusing `(define d ...)` or `(stars ...)` put nothing on the
+   * left, even though such a statement is entirely about its hypothesis — while focusing the
+   * `(-)` nested inside it worked. These are the value inputs `proofBlock` reads hypotheses
+   * from; a block whose `FACT` is a dropdown rather than an input has no target here, so it
+   * still falls through to null.
+   */
+  for (const input of ['FACT', 'VALUE', 'VIA']) {
+    const carried = block?.getInputTargetBlock(input);
+    if (carried) return factExpression(carried, puzzle);
+  }
   return null;
 }
 
